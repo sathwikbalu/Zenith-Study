@@ -1,36 +1,127 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Plus, Clock, Users } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useActivity } from '@/contexts/ActivityContext';
-import { useEffect } from 'react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Plus, Clock, Users } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useActivity } from "@/contexts/ActivityContext";
+import { useEffect, useState } from "react";
+import { sessionsAPI } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
-const sessions = [
-  { id: 1, title: 'Advanced Mathematics', subject: 'Math', duration: '2h 30m', participants: 5, status: 'active' },
-  { id: 2, title: 'Physics Study Group', subject: 'Physics', duration: '1h 45m', participants: 8, status: 'scheduled' },
-  { id: 3, title: 'Programming Fundamentals', subject: 'Computer Science', duration: '3h', participants: 12, status: 'completed' },
-  { id: 4, title: 'Chemistry Lab Review', subject: 'Chemistry', duration: '2h', participants: 6, status: 'scheduled' },
-];
+interface Session {
+  _id: string;
+  id: string;
+  title: string;
+  subject: string;
+  description: string;
+  startTime: string;
+  endTime: string;
+  createdBy: string;
+  participants: string[];
+  status: "scheduled" | "active" | "completed" | "cancelled";
+  maxParticipants: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
 const Sessions = () => {
   const { user } = useAuth();
   const { addActivity } = useActivity();
+  const { toast } = useToast();
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    fetchSessions();
+
     // Track activity when student views sessions
-    if (user?.role === 'student') {
+    if (user?.role === "student") {
       addActivity();
     }
   }, []);
-  
+
+  const fetchSessions = async () => {
+    try {
+      setLoading(true);
+      const fetchedSessions = await sessionsAPI.getAll();
+      // Map _id to id for frontend compatibility
+      const sessionsWithId = fetchedSessions.map((session: any) => ({
+        ...session,
+        id: session._id,
+      }));
+      setSessions(sessionsWithId);
+    } catch (error) {
+      console.error("Error fetching sessions:", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch sessions",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDuration = (start: string, end: string) => {
+    const startTime = new Date(start);
+    const endTime = new Date(end);
+    const diffMs = endTime.getTime() - startTime.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (diffHours > 0) {
+      return `${diffHours}h ${diffMinutes}m`;
+    }
+    return `${diffMinutes}m`;
+  };
+
+  const handleJoinSession = async (sessionId: string) => {
+    try {
+      const updatedSession = await sessionsAPI.join(sessionId);
+      // Update the session in the list
+      setSessions(
+        sessions.map((session) =>
+          session.id === sessionId
+            ? { ...session, participants: updatedSession.participants }
+            : session
+        )
+      );
+      toast({ title: "Success", description: "Joined session successfully" });
+    } catch (error) {
+      console.error("Error joining session:", error);
+      toast({
+        title: "Error",
+        description: "Failed to join session",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-display font-bold mb-2">Study Sessions</h2>
-          <p className="text-muted-foreground">Manage and join collaborative study sessions</p>
+          <h2 className="text-3xl font-display font-bold mb-2">
+            Study Sessions
+          </h2>
+          <p className="text-muted-foreground">
+            Manage and join collaborative study sessions
+          </p>
         </div>
-        {user?.role === 'tutor' && (
+        {user?.role === "tutor" && (
           <Button className="gap-2">
             <Plus className="w-4 h-4" />
             Create Session
@@ -49,14 +140,15 @@ const Sessions = () => {
                 </div>
                 <span
                   className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    session.status === 'active'
-                      ? 'bg-primary/10 text-primary'
-                      : session.status === 'scheduled'
-                      ? 'bg-secondary/10 text-secondary'
-                      : 'bg-muted text-muted-foreground'
+                    session.status === "active"
+                      ? "bg-primary/10 text-primary"
+                      : session.status === "scheduled"
+                      ? "bg-secondary/10 text-secondary"
+                      : "bg-muted text-muted-foreground"
                   }`}
                 >
-                  {session.status.charAt(0).toUpperCase() + session.status.slice(1)}
+                  {session.status.charAt(0).toUpperCase() +
+                    session.status.slice(1)}
                 </span>
               </div>
             </CardHeader>
@@ -64,16 +156,23 @@ const Sessions = () => {
               <div className="flex items-center gap-6 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4" />
-                  {session.duration}
+                  {formatDuration(session.startTime, session.endTime)}
                 </div>
                 <div className="flex items-center gap-2">
                   <Users className="w-4 h-4" />
-                  {session.participants} participants
+                  {session.participants.length} participants
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button className="flex-1">
-                  {session.status === 'active' ? 'Join Now' : 'View Details'}
+                <Button
+                  className="flex-1"
+                  onClick={() => handleJoinSession(session.id)}
+                  disabled={
+                    session.status !== "scheduled" &&
+                    session.status !== "active"
+                  }
+                >
+                  {session.status === "active" ? "Join Now" : "View Details"}
                 </Button>
                 <Button variant="outline">Share</Button>
               </div>
