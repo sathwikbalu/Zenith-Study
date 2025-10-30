@@ -13,10 +13,26 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { sessionsAPI } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { CreateSessionForm } from "@/components/CreateSessionForm";
 
 interface Session {
   _id: string;
   id: string;
+  title: string;
+  subject: string;
+  description: string;
+  startTime: string;
+  endTime: string;
+  createdBy: string;
+  participants: string[];
+  status: "scheduled" | "active" | "completed" | "cancelled";
+  maxParticipants: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface FetchedSession {
+  _id: string;
   title: string;
   subject: string;
   description: string;
@@ -37,6 +53,7 @@ const Sessions = () => {
   const navigate = useNavigate();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   useEffect(() => {
     fetchSessions();
@@ -52,7 +69,7 @@ const Sessions = () => {
       setLoading(true);
       const fetchedSessions = await sessionsAPI.getAll();
       // Map _id to id for frontend compatibility
-      const sessionsWithId = fetchedSessions.map((session: any) => ({
+      const sessionsWithId = fetchedSessions.map((session: FetchedSession) => ({
         ...session,
         id: session._id,
       }));
@@ -67,6 +84,10 @@ const Sessions = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCreateSession = () => {
+    setShowCreateForm(true);
   };
 
   const formatDuration = (start: string, end: string) => {
@@ -124,7 +145,7 @@ const Sessions = () => {
           </p>
         </div>
         {user?.role === "tutor" && (
-          <Button className="gap-2">
+          <Button className="gap-2" onClick={handleCreateSession}>
             <Plus className="w-4 h-4" />
             Create Session
           </Button>
@@ -175,7 +196,9 @@ const Sessions = () => {
                   }
                 >
                   <Video className="w-4 h-4" />
-                  {session.status === "active" ? "Join Session" : "View Details"}
+                  {session.status === "active"
+                    ? "Join Session"
+                    : "View Details"}
                 </Button>
                 <Button variant="outline">Share</Button>
               </div>
@@ -183,6 +206,12 @@ const Sessions = () => {
           </Card>
         ))}
       </div>
+
+      <CreateSessionForm
+        open={showCreateForm}
+        onOpenChange={setShowCreateForm}
+        onSessionCreated={fetchSessions}
+      />
     </div>
   );
 };

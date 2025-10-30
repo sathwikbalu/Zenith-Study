@@ -1,27 +1,26 @@
-const { createClient } = require("@supabase/supabase-js");
-
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const ChatMessage = require("../models/ChatMessage");
 
 const getSessionMessages = async (req, res) => {
   try {
     const { sessionId } = req.params;
     const { limit = 100 } = req.query;
 
-    const { data, error } = await supabase
-      .from("chat_messages")
-      .select("*")
-      .eq("session_id", sessionId)
-      .order("created_at", { ascending: true })
+    const messages = await ChatMessage.find({ sessionId })
+      .sort({ createdAt: 1 })
       .limit(parseInt(limit));
 
-    if (error) {
-      console.error("Supabase error:", error);
-      return res.status(500).json({ message: "Error fetching messages" });
-    }
+    // Format the response to match what the frontend expects
+    const formattedMessages = messages.map((message) => ({
+      id: message._id.toString(),
+      sessionId: message.sessionId,
+      userId: message.userId,
+      userName: message.userName,
+      message: message.message,
+      messageType: message.messageType,
+      timestamp: message.createdAt.toISOString(),
+    }));
 
-    res.json(data || []);
+    res.json(formattedMessages || []);
   } catch (error) {
     console.error("Error in getSessionMessages:", error);
     res.status(500).json({ message: error.message });
@@ -35,29 +34,33 @@ const saveMessage = async (req, res) => {
     const userName = req.user.name;
 
     if (!sessionId || !message) {
-      return res.status(400).json({ message: "Session ID and message are required" });
+      return res
+        .status(400)
+        .json({ message: "Session ID and message are required" });
     }
 
-    const { data, error } = await supabase
-      .from("chat_messages")
-      .insert([
-        {
-          session_id: sessionId,
-          user_id: userId,
-          user_name: userName,
-          message,
-          message_type: messageType,
-        },
-      ])
-      .select()
-      .single();
+    const chatMessage = new ChatMessage({
+      sessionId,
+      userId,
+      userName,
+      message,
+      messageType,
+    });
 
-    if (error) {
-      console.error("Supabase error:", error);
-      return res.status(500).json({ message: "Error saving message" });
-    }
+    const savedMessage = await chatMessage.save();
 
-    res.status(201).json(data);
+    // Format the response to match what the frontend expects
+    const formattedMessage = {
+      id: savedMessage._id.toString(),
+      sessionId: savedMessage.sessionId,
+      userId: savedMessage.userId,
+      userName: savedMessage.userName,
+      message: savedMessage.message,
+      messageType: savedMessage.messageType,
+      timestamp: savedMessage.createdAt.toISOString(),
+    };
+
+    res.status(201).json(formattedMessage);
   } catch (error) {
     console.error("Error in saveMessage:", error);
     res.status(500).json({ message: error.message });

@@ -15,6 +15,9 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
     credentials: true,
   },
+  // Add better configuration for voice clarity
+  transports: ["websocket", "polling"],
+  allowEIO3: true,
 });
 
 const PORT = process.env.PORT || 5000;
@@ -54,29 +57,41 @@ const userSocketMap = new Map();
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  socket.on("join-session", ({ sessionId, userId, userName }) => {
-    socket.join(sessionId);
+  socket.on(
+    "join-session",
+    ({ sessionId, userId, userName, isTutor = false }) => {
+      socket.join(sessionId);
 
-    if (!sessionRooms.has(sessionId)) {
-      sessionRooms.set(sessionId, new Set());
+      if (!sessionRooms.has(sessionId)) {
+        sessionRooms.set(sessionId, new Set());
+      }
+      sessionRooms.get(sessionId).add(socket.id);
+      userSocketMap.set(socket.id, { userId, userName, sessionId, isTutor });
+
+      const participants = Array.from(sessionRooms.get(sessionId)).map((id) => {
+        const user = userSocketMap.get(id);
+        return {
+          socketId: id,
+          userId: user?.userId,
+          userName: user?.userName,
+          isTutor: user?.isTutor || false,
+        };
+      });
+
+      io.to(sessionId).emit("user-joined", {
+        socketId: socket.id,
+        userId,
+        userName,
+        isTutor,
+        participants,
+      });
+
+      socket.emit(
+        "existing-participants",
+        participants.filter((p) => p.socketId !== socket.id)
+      );
     }
-    sessionRooms.get(sessionId).add(socket.id);
-    userSocketMap.set(socket.id, { userId, userName, sessionId });
-
-    const participants = Array.from(sessionRooms.get(sessionId)).map(id => {
-      const user = userSocketMap.get(id);
-      return { socketId: id, userId: user?.userId, userName: user?.userName };
-    });
-
-    io.to(sessionId).emit("user-joined", {
-      socketId: socket.id,
-      userId,
-      userName,
-      participants
-    });
-
-    socket.emit("existing-participants", participants.filter(p => p.socketId !== socket.id));
-  });
+  );
 
   socket.on("webrtc-offer", ({ offer, to }) => {
     socket.to(to).emit("webrtc-offer", { offer, from: socket.id });
@@ -90,26 +105,39 @@ io.on("connection", (socket) => {
     socket.to(to).emit("webrtc-ice-candidate", { candidate, from: socket.id });
   });
 
-  socket.on("chat-message", ({ sessionId, message, userId, userName, messageType }) => {
-    const messageData = {
-      id: Date.now().toString(),
-      sessionId,
-      userId,
-      userName,
-      message,
-      messageType: messageType || 'text',
-      timestamp: new Date().toISOString(),
-    };
+  socket.on(
+    "chat-message",
+    ({ sessionId, message, userId, userName, messageType }) => {
+      const messageData = {
+        id: Date.now().toString(),
+        sessionId,
+        userId,
+        userName,
+        message,
+        messageType: messageType || "text",
+        timestamp: new Date().toISOString(),
+      };
 
-    io.to(sessionId).emit("chat-message", messageData);
-  });
+      // Broadcast message to all participants in the session
+      io.to(sessionId).emit("chat-message", messageData);
+
+      // Also log the message to console for debugging
+      console.log(
+        `Chat message in session ${sessionId}: ${userName}: ${message}`
+      );
+    }
+  );
 
   socket.on("toggle-audio", ({ sessionId, userId, enabled }) => {
-    socket.to(sessionId).emit("user-audio-toggle", { userId, socketId: socket.id, enabled });
+    socket
+      .to(sessionId)
+      .emit("user-audio-toggle", { userId, socketId: socket.id, enabled });
   });
 
   socket.on("toggle-video", ({ sessionId, userId, enabled }) => {
-    socket.to(sessionId).emit("user-video-toggle", { userId, socketId: socket.id, enabled });
+    socket
+      .to(sessionId)
+      .emit("user-video-toggle", { userId, socketId: socket.id, enabled });
   });
 
   socket.on("leave-session", ({ sessionId }) => {
@@ -139,14 +167,27 @@ io.on("connection", (socket) => {
       io.to(sessionId).emit("user-left", {
         socketId: socket.id,
         userId: userData.userId,
-        userName: userData.userName
+        userName: userData.userName,
       });
     }
   }
 });
 
-// Start server
+// Start server with proper error handling
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   console.log(`Socket.IO server is ready`);
+});
+
+// Handle server startup errors
+server.on("error", (error) => {
+  if (error.code === "EADDRINUSE") {
+    console.error(
+      `Port ${PORT} is already in use. Please close the application using this port or use a different port.`
+    );
+    process.exit(1);
+  } else {
+    console.error("Server error:", error);
+    process.exit(1);
+  }
 });

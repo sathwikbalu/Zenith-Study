@@ -1,12 +1,12 @@
-import { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { useSocket } from '@/contexts/SocketContext';
-import { useWebRTC } from '@/hooks/useWebRTC';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { useEffect, useState, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useSocket } from "@/contexts/SocketContext";
+import { useWebRTC } from "@/hooks/useWebRTC";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Mic,
   MicOff,
@@ -16,9 +16,9 @@ import {
   Send,
   MessageCircle,
   Users,
-  X
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
+  X,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ChatMessage {
   id: string;
@@ -30,16 +30,34 @@ interface ChatMessage {
   timestamp: string;
 }
 
+interface FetchedMessage {
+  id?: string;
+  _id?: string;
+  sessionId?: string;
+  session_id?: string;
+  userId?: string;
+  user_id?: string;
+  userName?: string;
+  user_name?: string;
+  message: string;
+  messageType?: string;
+  message_type?: string;
+  timestamp?: string;
+  created_at?: string;
+}
+
 const SessionRoom = () => {
   const { id: sessionId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { socket, connected } = useSocket();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [newMessage, setNewMessage] = useState('');
+  const [newMessage, setNewMessage] = useState("");
   const [showChat, setShowChat] = useState(true);
   const [showParticipants, setShowParticipants] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const isTutor = user?.role === "tutor";
 
   const {
     localStream,
@@ -48,78 +66,116 @@ const SessionRoom = () => {
     videoEnabled,
     toggleAudio,
     toggleVideo,
-  } = useWebRTC(socket, sessionId || '', user?._id || '', user?.name || '');
+  } = useWebRTC(
+    socket,
+    sessionId || "",
+    user?._id || "",
+    user?.name || "",
+    isTutor
+  );
 
   useEffect(() => {
     if (!socket || !sessionId) return;
 
     const fetchMessages = async () => {
       try {
-        const response = await fetch(`http://localhost:5000/api/chat/session/${sessionId}`, {
-          headers: {
-            Authorization: `Bearer ${user?.token}`,
-          },
-        });
+        const response = await fetch(
+          `http://localhost:5000/api/chat/session/${sessionId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${user?.token}`,
+            },
+          }
+        );
         if (response.ok) {
-          const data = await response.json();
-          setMessages(data);
+          const data: FetchedMessage[] = await response.json();
+          // Ensure messages have unique keys and are properly formatted
+          const formattedMessages = data.map((msg) => ({
+            id: msg.id || msg._id || Date.now().toString() + Math.random(),
+            sessionId: msg.sessionId || msg.session_id || sessionId || "",
+            userId: msg.userId || msg.user_id || "",
+            userName: msg.userName || msg.user_name || "Unknown",
+            message: msg.message,
+            messageType: msg.messageType || msg.message_type || "text",
+            timestamp:
+              msg.timestamp || msg.created_at || new Date().toISOString(),
+          }));
+          setMessages(formattedMessages);
         }
       } catch (error) {
-        console.error('Error fetching messages:', error);
+        console.error("Error fetching messages:", error);
       }
     };
 
     fetchMessages();
 
-    socket.on('chat-message', (message: ChatMessage) => {
-      setMessages((prev) => [...prev, message]);
-    });
+    const handleChatMessage = (message: ChatMessage) => {
+      // Ensure the message has a unique id
+      const messageWithId = {
+        ...message,
+        id: message.id || Date.now().toString() + Math.random(),
+      };
+      setMessages((prev) => [...prev, messageWithId]);
+    };
+
+    socket.on("chat-message", handleChatMessage);
 
     return () => {
-      socket.off('chat-message');
+      socket.off("chat-message", handleChatMessage);
     };
   }, [socket, sessionId, user?.token]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Scroll to bottom when messages change
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !socket || !sessionId) return;
 
-    socket.emit('chat-message', {
+    const messageData = {
       sessionId,
       message: newMessage,
       userId: user?._id,
       userName: user?.name,
-      messageType: 'text',
-    });
+      messageType: "text",
+    };
+
+    // Emit the message to all participants
+    socket.emit("chat-message", messageData);
 
     try {
-      await fetch('http://localhost:5000/api/chat', {
-        method: 'POST',
+      // Save the message to the database
+      const response = await fetch("http://localhost:5000/api/chat", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${user?.token}`,
         },
         body: JSON.stringify({
           sessionId,
           message: newMessage,
-          messageType: 'text',
+          messageType: "text",
         }),
       });
+
+      if (!response.ok) {
+        throw new Error("Failed to save message");
+      }
     } catch (error) {
-      console.error('Error saving message:', error);
+      console.error("Error saving message:", error);
     }
 
-    setNewMessage('');
+    setNewMessage("");
   };
 
   const leaveSession = () => {
     if (socket && sessionId) {
-      socket.emit('leave-session', { sessionId });
+      socket.emit("leave-session", { sessionId });
     }
-    navigate('/dashboard/sessions');
+    navigate("/dashboard/sessions");
   };
 
   if (!connected) {
@@ -138,22 +194,32 @@ const SessionRoom = () => {
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-max overflow-y-auto">
           <Card className="aspect-video bg-black relative overflow-hidden">
-            <video
-              ref={(video) => {
-                if (video && localStream) {
-                  video.srcObject = localStream;
-                  video.play().catch(console.error);
-                }
-              }}
-              autoPlay
-              muted
-              playsInline
-              className="w-full h-full object-cover"
-            />
+            {localStream ? (
+              <video
+                ref={(video) => {
+                  if (video && localStream) {
+                    video.srcObject = localStream;
+                    video.play().catch(console.error);
+                  }
+                }}
+                autoPlay
+                muted
+                playsInline
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-black">
+                <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
+                  <span className="text-2xl font-bold text-primary">
+                    {user?.name?.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              </div>
+            )}
             <div className="absolute bottom-2 left-2 bg-black/50 px-2 py-1 rounded text-white text-sm">
-              You {!videoEnabled && '(video off)'}
+              You {!videoEnabled && "(video off)"}
             </div>
-            {!videoEnabled && (
+            {(!videoEnabled || !localStream) && (
               <div className="absolute inset-0 flex items-center justify-center bg-black">
                 <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
                   <span className="text-2xl font-bold text-primary">
@@ -165,7 +231,10 @@ const SessionRoom = () => {
           </Card>
 
           {Array.from(peers.values()).map((peer) => (
-            <Card key={peer.socketId} className="aspect-video bg-black relative overflow-hidden">
+            <Card
+              key={peer.socketId}
+              className="aspect-video bg-black relative overflow-hidden"
+            >
               {peer.stream && peer.videoEnabled !== false ? (
                 <video
                   ref={(video) => {
@@ -188,7 +257,7 @@ const SessionRoom = () => {
                 </div>
               )}
               <div className="absolute bottom-2 left-2 bg-black/50 px-2 py-1 rounded text-white text-sm flex items-center gap-2">
-                {peer.userName}
+                {peer.userName} {peer.isTutor ? "(Tutor)" : ""}
                 {peer.audioEnabled === false && <MicOff className="w-3 h-3" />}
               </div>
             </Card>
@@ -216,17 +285,19 @@ const SessionRoom = () => {
                   <div
                     key={msg.id}
                     className={cn(
-                      'flex flex-col gap-1',
-                      msg.userId === user?._id ? 'items-end' : 'items-start'
+                      "flex flex-col gap-1",
+                      msg.userId === user?._id ? "items-end" : "items-start"
                     )}
                   >
-                    <span className="text-xs text-muted-foreground">{msg.userName}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {msg.userName}
+                    </span>
                     <div
                       className={cn(
-                        'px-3 py-2 rounded-lg max-w-[80%]',
+                        "px-3 py-2 rounded-lg max-w-[80%]",
                         msg.userId === user?._id
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted'
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted"
                       )}
                     >
                       <p className="text-sm">{msg.message}</p>
@@ -240,7 +311,7 @@ const SessionRoom = () => {
               <Input
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                onKeyPress={(e) => e.key === "Enter" && sendMessage()}
                 placeholder="Type a message..."
                 className="flex-1"
               />
@@ -255,7 +326,7 @@ const SessionRoom = () => {
       <div className="border-t p-4 bg-card">
         <div className="flex items-center justify-center gap-4">
           <Button
-            variant={audioEnabled ? 'default' : 'destructive'}
+            variant={audioEnabled ? "default" : "destructive"}
             size="icon"
             className="h-12 w-12 rounded-full"
             onClick={toggleAudio}
@@ -263,7 +334,7 @@ const SessionRoom = () => {
             {audioEnabled ? <Mic /> : <MicOff />}
           </Button>
           <Button
-            variant={videoEnabled ? 'default' : 'destructive'}
+            variant={videoEnabled ? "default" : "destructive"}
             size="icon"
             className="h-12 w-12 rounded-full"
             onClick={toggleVideo}
