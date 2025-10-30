@@ -6,10 +6,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Clock, Users } from "lucide-react";
+import { Plus, Clock, Users, Video } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useActivity } from "@/contexts/ActivityContext";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { sessionsAPI } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
@@ -33,6 +34,7 @@ const Sessions = () => {
   const { user } = useAuth();
   const { addActivity } = useActivity();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -165,14 +167,15 @@ const Sessions = () => {
               </div>
               <div className="flex gap-2">
                 <Button
-                  className="flex-1"
-                  onClick={() => handleJoinSession(session.id)}
+                  className="flex-1 gap-2"
+                  onClick={() => navigate(`/session/${session.id}`)}
                   disabled={
                     session.status !== "scheduled" &&
                     session.status !== "active"
                   }
                 >
-                  {session.status === "active" ? "Join Now" : "View Details"}
+                  <Video className="w-4 h-4" />
+                  {session.status === "active" ? "Join Session" : "View Details"}
                 </Button>
                 <Button variant="outline">Share</Button>
               </div>

@@ -1,11 +1,22 @@
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
+const http = require("http");
+const { Server } = require("socket.io");
 require("dotenv").config();
 
 const connectDB = require("./config/db");
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL || "http://localhost:8080",
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
+
 const PORT = process.env.PORT || 5000;
 
 // Middleware
@@ -21,6 +32,7 @@ const userRoutes = require("./routes/userRoutes");
 const notesRoutes = require("./routes/notesRoutes");
 const sessionsRoutes = require("./routes/sessionsRoutes");
 const activityRoutes = require("./routes/activityRoutes");
+const chatRoutes = require("./routes/chatRoutes");
 
 // Routes
 app.get("/", (req, res) => {
@@ -33,8 +45,108 @@ app.use("/api/users", userRoutes);
 app.use("/api/notes", notesRoutes);
 app.use("/api/sessions", sessionsRoutes);
 app.use("/api/activities", activityRoutes);
+app.use("/api/chat", chatRoutes);
+
+// Socket.IO connection handling
+const sessionRooms = new Map();
+const userSocketMap = new Map();
+
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+
+  socket.on("join-session", ({ sessionId, userId, userName }) => {
+    socket.join(sessionId);
+
+    if (!sessionRooms.has(sessionId)) {
+      sessionRooms.set(sessionId, new Set());
+    }
+    sessionRooms.get(sessionId).add(socket.id);
+    userSocketMap.set(socket.id, { userId, userName, sessionId });
+
+    const participants = Array.from(sessionRooms.get(sessionId)).map(id => {
+      const user = userSocketMap.get(id);
+      return { socketId: id, userId: user?.userId, userName: user?.userName };
+    });
+
+    io.to(sessionId).emit("user-joined", {
+      socketId: socket.id,
+      userId,
+      userName,
+      participants
+    });
+
+    socket.emit("existing-participants", participants.filter(p => p.socketId !== socket.id));
+  });
+
+  socket.on("webrtc-offer", ({ offer, to }) => {
+    socket.to(to).emit("webrtc-offer", { offer, from: socket.id });
+  });
+
+  socket.on("webrtc-answer", ({ answer, to }) => {
+    socket.to(to).emit("webrtc-answer", { answer, from: socket.id });
+  });
+
+  socket.on("webrtc-ice-candidate", ({ candidate, to }) => {
+    socket.to(to).emit("webrtc-ice-candidate", { candidate, from: socket.id });
+  });
+
+  socket.on("chat-message", ({ sessionId, message, userId, userName, messageType }) => {
+    const messageData = {
+      id: Date.now().toString(),
+      sessionId,
+      userId,
+      userName,
+      message,
+      messageType: messageType || 'text',
+      timestamp: new Date().toISOString(),
+    };
+
+    io.to(sessionId).emit("chat-message", messageData);
+  });
+
+  socket.on("toggle-audio", ({ sessionId, userId, enabled }) => {
+    socket.to(sessionId).emit("user-audio-toggle", { userId, socketId: socket.id, enabled });
+  });
+
+  socket.on("toggle-video", ({ sessionId, userId, enabled }) => {
+    socket.to(sessionId).emit("user-video-toggle", { userId, socketId: socket.id, enabled });
+  });
+
+  socket.on("leave-session", ({ sessionId }) => {
+    handleUserLeave(socket, sessionId);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+    const userData = userSocketMap.get(socket.id);
+    if (userData?.sessionId) {
+      handleUserLeave(socket, userData.sessionId);
+    }
+  });
+
+  function handleUserLeave(socket, sessionId) {
+    const userData = userSocketMap.get(socket.id);
+    if (sessionRooms.has(sessionId)) {
+      sessionRooms.get(sessionId).delete(socket.id);
+      if (sessionRooms.get(sessionId).size === 0) {
+        sessionRooms.delete(sessionId);
+      }
+    }
+    userSocketMap.delete(socket.id);
+    socket.leave(sessionId);
+
+    if (userData) {
+      io.to(sessionId).emit("user-left", {
+        socketId: socket.id,
+        userId: userData.userId,
+        userName: userData.userName
+      });
+    }
+  }
+});
 
 // Start server
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+  console.log(`Socket.IO server is ready`);
 });

@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ActivityProvider } from "@/contexts/ActivityContext";
+import { SocketProvider } from "@/contexts/SocketContext";
 import { MentalHealthAssistant } from "@/components/MentalHealthAssistant";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
@@ -21,6 +22,7 @@ import SmartInterviews from "./pages/dashboard/SmartInterviews";
 import Settings from "./pages/dashboard/Settings";
 import Assignments from "./pages/dashboard/Assignments";
 import Analytics from "./pages/dashboard/Analytics";
+import SessionRoom from "./pages/dashboard/SessionRoom";
 import NotFound from "./pages/NotFound";
 // import BackendTest from "./components/BackendTest";
 
@@ -73,8 +75,9 @@ const App = () => (
       </div> */}
       <BrowserRouter>
         <AuthProvider>
-          <ActivityProvider>
-            <Routes>
+          <SocketProvider>
+            <ActivityProvider>
+              <Routes>
               <Route path="/" element={<Index />} />
               <Route
                 path="/login"
@@ -112,9 +115,18 @@ const App = () => (
                 <Route path="analytics" element={<Analytics />} />
                 <Route path="settings" element={<Settings />} />
               </Route>
+              <Route
+                path="/session/:id"
+                element={
+                  <ProtectedRoute>
+                    <SessionRoom />
+                  </ProtectedRoute>
+                }
+              />
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </ActivityProvider>
+            </ActivityProvider>
+          </SocketProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

@@ -171,3 +171,19 @@ export const activitiesAPI = {
 
   getStreaks: () => apiRequest("/activities/streaks"),
 };
+
+// Chat API
+export const chatAPI = {
+  getSessionMessages: (sessionId: string, limit = 100) =>
+    apiRequest(`/chat/session/${sessionId}?limit=${limit}`),
+
+  saveMessage: (messageData: {
+    sessionId: string;
+    message: string;
+    messageType?: string;
+  }) =>
+    apiRequest("/chat", {
+      method: "POST",
+      body: JSON.stringify(messageData),
+    }),
+};
