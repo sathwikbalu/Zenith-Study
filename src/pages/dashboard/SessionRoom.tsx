@@ -17,7 +17,9 @@ import {
   MessageCircle,
   Users,
   X,
+  Presentation,
 } from "lucide-react";
+import { CollaborativeWhiteboard } from "@/components/CollaborativeWhiteboard";
 import { cn } from "@/lib/utils";
 
 interface ChatMessage {
@@ -55,6 +57,7 @@ const SessionRoom = () => {
   const [newMessage, setNewMessage] = useState("");
   const [showChat, setShowChat] = useState(true);
   const [showParticipants, setShowParticipants] = useState(false);
+  const [showWhiteboard, setShowWhiteboard] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const isTutor = user?.role === "tutor";
@@ -192,7 +195,16 @@ const SessionRoom = () => {
   return (
     <div className="fixed inset-0 bg-background flex flex-col">
       <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-max overflow-y-auto">
+        {showWhiteboard ? (
+          <div className="flex-1 p-4">
+            <CollaborativeWhiteboard 
+              socket={socket} 
+              sessionId={sessionId || ""} 
+              userId={user?._id || ""} 
+            />
+          </div>
+        ) : (
+          <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-max overflow-y-auto">
           <Card className="aspect-video bg-black relative overflow-hidden">
             {localStream ? (
               <video
@@ -262,9 +274,10 @@ const SessionRoom = () => {
               </div>
             </Card>
           ))}
-        </div>
+          </div>
+        )}
 
-        {showChat && (
+        {showChat && !showWhiteboard && (
           <Card className="w-80 m-4 flex flex-col">
             <div className="p-4 border-b flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -366,6 +379,14 @@ const SessionRoom = () => {
             onClick={() => setShowParticipants(!showParticipants)}
           >
             <Users />
+          </Button>
+          <Button
+            variant={showWhiteboard ? "default" : "outline"}
+            size="icon"
+            className="h-12 w-12 rounded-full"
+            onClick={() => setShowWhiteboard(!showWhiteboard)}
+          >
+            <Presentation />
           </Button>
         </div>
       </div>

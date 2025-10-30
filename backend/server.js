@@ -53,6 +53,7 @@ app.use("/api/chat", chatRoutes);
 // Socket.IO connection handling
 const sessionRooms = new Map();
 const userSocketMap = new Map();
+const whiteboardStates = new Map(); // Store whiteboard state per session
 
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
@@ -138,6 +139,28 @@ io.on("connection", (socket) => {
     socket
       .to(sessionId)
       .emit("user-video-toggle", { userId, socketId: socket.id, enabled });
+  });
+
+  // Whiteboard events
+  socket.on("whiteboard-action", ({ sessionId, userId, action, data }) => {
+    // Update stored whiteboard state
+    if (action === "clear") {
+      whiteboardStates.set(sessionId, { objects: [] });
+    } else if (action === "add" && data) {
+      const state = whiteboardStates.get(sessionId) || { objects: [] };
+      state.objects.push(data);
+      whiteboardStates.set(sessionId, state);
+    }
+
+    // Broadcast to other participants
+    socket.to(sessionId).emit("whiteboard-action", { userId, action, data });
+  });
+
+  socket.on("whiteboard-request-sync", ({ sessionId }) => {
+    const state = whiteboardStates.get(sessionId);
+    if (state) {
+      socket.emit("whiteboard-sync", state);
+    }
   });
 
   socket.on("leave-session", ({ sessionId }) => {
