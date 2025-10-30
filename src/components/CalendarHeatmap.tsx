@@ -63,10 +63,34 @@ const CalendarHeatmap = ({ activities }: CalendarHeatmapProps) => {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const days = ['Mon', 'Wed', 'Fri'];
 
+  // Calculate month positions
+  const getMonthLabels = () => {
+    const labels: { month: string; position: number }[] = [];
+    let currentMonth = -1;
+    
+    heatmapData.forEach((week, index) => {
+      const firstDay = week[0];
+      if (firstDay) {
+        const month = firstDay.date.getMonth();
+        if (month !== currentMonth && index > 0) {
+          labels.push({
+            month: months[month],
+            position: index,
+          });
+          currentMonth = month;
+        }
+      }
+    });
+    
+    return labels;
+  };
+
+  const monthLabels = getMonthLabels();
+
   return (
     <div className="space-y-3">
-      <div className="flex gap-2 overflow-x-auto pb-4">
-        <div className="flex flex-col justify-between text-xs text-muted-foreground pr-2">
+      <div className="flex gap-2 overflow-x-auto pb-2">
+        <div className="flex flex-col justify-between text-xs text-muted-foreground pr-2 pt-4">
           {days.map(day => (
             <div key={day} className="h-3 flex items-center">
               {day}
@@ -74,27 +98,43 @@ const CalendarHeatmap = ({ activities }: CalendarHeatmapProps) => {
           ))}
         </div>
         
-        <TooltipProvider>
-          <div className="flex gap-1">
-            {heatmapData.map((week, weekIndex) => (
-              <div key={weekIndex} className="flex flex-col gap-1">
-                {week.map((day, dayIndex) => (
-                  <Tooltip key={`${weekIndex}-${dayIndex}`}>
-                    <TooltipTrigger asChild>
-                      <div
-                        className={`w-3 h-3 rounded-sm ${getColor(day.count)} hover:ring-2 hover:ring-primary/50 transition-all cursor-pointer`}
-                      />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="font-semibold">{day.count} activities</p>
-                      <p className="text-xs text-muted-foreground">{formatDate(day.date)}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                ))}
-              </div>
+        <div className="flex flex-col gap-2">
+          {/* Month labels */}
+          <div className="relative h-4 text-xs text-muted-foreground">
+            {monthLabels.map((label, index) => (
+              <span
+                key={index}
+                className="absolute"
+                style={{ left: `${label.position * 16}px` }}
+              >
+                {label.month}
+              </span>
             ))}
           </div>
-        </TooltipProvider>
+          
+          {/* Heatmap grid */}
+          <TooltipProvider>
+            <div className="flex gap-1">
+              {heatmapData.map((week, weekIndex) => (
+                <div key={weekIndex} className="flex flex-col gap-1">
+                  {week.map((day, dayIndex) => (
+                    <Tooltip key={`${weekIndex}-${dayIndex}`}>
+                      <TooltipTrigger asChild>
+                        <div
+                          className={`w-3 h-3 rounded-sm ${getColor(day.count)} hover:ring-2 hover:ring-primary/50 transition-all cursor-pointer`}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="font-semibold">{day.count} activities</p>
+                        <p className="text-xs text-muted-foreground">{formatDate(day.date)}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </TooltipProvider>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
