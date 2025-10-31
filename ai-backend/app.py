@@ -297,6 +297,162 @@ Make the notes clear, educational, well-organized, and suitable for student lear
             'error': f'An error occurred while generating notes: {str(e)}'
         }), 500
 
+@app.route('/api/generate-interview-questions', methods=['POST'])
+def generate_interview_questions():
+    """
+    Generate interview questions based on resume and job role
+    Expected request body:
+    {
+        "resume": "Resume text",
+        "jobRole": "Job role/position"
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'resume' not in data or 'jobRole' not in data:
+            return jsonify({
+                'error': 'Missing required fields: resume and jobRole'
+            }), 400
+        
+        resume = data['resume']
+        job_role = data['jobRole']
+        
+        prompt = f"""Based on the following resume and job role, generate exactly 10 interview questions.
+The questions should be relevant to the candidate's experience and the target role.
+Mix technical, behavioral, and situational questions.
+
+Job Role: {job_role}
+
+Resume:
+{resume}
+
+Generate 10 questions in JSON format with this exact structure:
+{{
+  "questions": [
+    {{
+      "id": 1,
+      "question": "Question text here",
+      "type": "technical",
+      "expectedPoints": ["key point 1", "key point 2", "key point 3"]
+    }},
+    {{
+      "id": 2,
+      "question": "Question text here",
+      "type": "behavioral",
+      "expectedPoints": ["key point 1", "key point 2"]
+    }}
+  ]
+}}
+
+Types should be one of: "technical", "behavioral", or "situational"
+Return ONLY valid JSON, no additional text or markdown."""
+
+        response = model.generate_content(prompt)
+        result_text = response.text.strip()
+        
+        # Clean the response to extract JSON
+        if '```json' in result_text:
+            result_text = result_text.split('```json')[1].split('```')[0].strip()
+        elif '```' in result_text:
+            result_text = result_text.split('```')[1].split('```')[0].strip()
+        
+        import json
+        questions_data = json.loads(result_text)
+        
+        return jsonify(questions_data), 200
+    
+    except json.JSONDecodeError as e:
+        print(f"JSON decode error: {str(e)}")
+        print(f"Response text: {result_text}")
+        return jsonify({
+            'error': 'Failed to parse AI response',
+            'details': str(e)
+        }), 500
+    
+    except Exception as e:
+        print(f"Error in generate_interview_questions: {str(e)}")
+        return jsonify({
+            'error': f'An error occurred: {str(e)}'
+        }), 500
+
+@app.route('/api/evaluate-answer', methods=['POST'])
+def evaluate_answer():
+    """
+    Evaluate an interview answer
+    Expected request body:
+    {
+        "question": "Interview question",
+        "answer": "Candidate's answer",
+        "expectedPoints": ["point1", "point2"],
+        "jobRole": "Job role"
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'question' not in data or 'answer' not in data:
+            return jsonify({
+                'error': 'Missing required fields: question and answer'
+            }), 400
+        
+        question = data['question']
+        answer = data['answer']
+        expected_points = data.get('expectedPoints', [])
+        job_role = data.get('jobRole', '')
+        
+        prompt = f"""Evaluate the following interview answer for the job role: {job_role}
+
+Question: {question}
+
+Expected Key Points: {', '.join(expected_points)}
+
+Candidate's Answer: {answer}
+
+Provide an evaluation in JSON format with this exact structure:
+{{
+  "score": 8,
+  "strengths": ["strength 1", "strength 2"],
+  "improvements": ["improvement 1", "improvement 2"],
+  "feedback": "Overall feedback paragraph explaining the score and key observations"
+}}
+
+Score should be 0-10 based on:
+- Relevance and completeness of answer
+- Clarity of communication
+- Coverage of expected key points
+- Specific examples or details provided
+
+Return ONLY valid JSON, no additional text or markdown."""
+
+        response = model.generate_content(prompt)
+        result_text = response.text.strip()
+        
+        # Clean the response to extract JSON
+        if '```json' in result_text:
+            result_text = result_text.split('```json')[1].split('```')[0].strip()
+        elif '```' in result_text:
+            result_text = result_text.split('```')[1].split('```')[0].strip()
+        
+        import json
+        evaluation_data = json.loads(result_text)
+        
+        return jsonify(evaluation_data), 200
+    
+    except json.JSONDecodeError as e:
+        print(f"JSON decode error: {str(e)}")
+        print(f"Response text: {result_text}")
+        return jsonify({
+            'error': 'Failed to parse AI response',
+            'details': str(e)
+        }), 500
+    
+    except Exception as e:
+        print(f"Error in evaluate_answer: {str(e)}")
+        return jsonify({
+            'error': f'An error occurred: {str(e)}'
+        }), 500
+
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5001))
     debug = os.getenv('FLASK_ENV') == 'development'
