@@ -1,33 +1,24 @@
 import { useEffect, useRef } from "react";
 
 interface LocalVideoProps {
-  stream: MediaStream | null;
+  stream: MediaStream;
   videoEnabled: boolean;
   userName: string;
 }
 
-export const LocalVideo = ({ stream, videoEnabled, userName }: LocalVideoProps) => {
+export const LocalVideo = ({
+  stream,
+  videoEnabled,
+  userName,
+}: LocalVideoProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    if (stream && videoEnabled) {
-      console.log(`📹 Setting local video stream for ${userName}`, stream);
-      video.srcObject = stream;
-
-      video.play().catch((err) => {
-        console.error(`Failed to play local video:`, err);
-      });
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(console.error);
     }
-
-    return () => {
-      if (video) {
-        video.srcObject = null;
-      }
-    };
-  }, [stream, videoEnabled, userName]);
+  }, [stream]);
 
   return (
     <video

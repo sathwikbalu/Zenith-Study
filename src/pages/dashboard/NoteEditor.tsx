@@ -5,8 +5,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Save, Star } from "lucide-react";
+import { ArrowLeft, Save, Star, Sparkles, Loader2 } from "lucide-react";
 import { notesAPI } from "@/lib/api";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Note {
   _id: string;
@@ -32,6 +40,9 @@ const NoteEditor = () => {
   });
   const [starred, setStarred] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [summarizing, setSummarizing] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
+  const [summary, setSummary] = useState("");
 
   useEffect(() => {
     if (id && id !== "new") {
@@ -58,6 +69,56 @@ const NoteEditor = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSummarize = async () => {
+    if (!formData.content.trim()) {
+      toast({
+        title: "Error",
+        description: "Please add some content to summarize",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setSummarizing(true);
+      const response = await fetch(
+        "http://localhost:5001/api/summarize-notes",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            content: formData.content,
+            title: formData.title || "Untitled Note",
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to summarize notes");
+      }
+
+      const data = await response.json();
+      setSummary(data.summary);
+      setShowSummary(true);
+      toast({
+        title: "Success",
+        description: "Notes summarized successfully!",
+      });
+    } catch (error) {
+      console.error("Error summarizing notes:", error);
+      toast({
+        title: "Error",
+        description:
+          "Failed to summarize notes. Make sure AI backend is running on port 5001.",
+        variant: "destructive",
+      });
+    } finally {
+      setSummarizing(false);
     }
   };
 
@@ -120,6 +181,19 @@ const NoteEditor = () => {
         </Button>
         <div className="flex gap-2">
           <Button
+            variant="outline"
+            onClick={handleSummarize}
+            disabled={summarizing || !formData.content}
+            className="gap-2"
+          >
+            {summarizing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Sparkles className="w-4 h-4" />
+            )}
+            {summarizing ? "Summarizing..." : "AI Summarizer"}
+          </Button>
+          <Button
             variant="ghost"
             size="icon"
             onClick={() => setStarred(!starred)}
@@ -175,6 +249,26 @@ const NoteEditor = () => {
           />
         </div>
       </div>
+
+      {/* AI Summary Dialog */}
+      <Dialog open={showSummary} onOpenChange={setShowSummary}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5" />
+              AI Summary
+            </DialogTitle>
+            <DialogDescription>
+              Important concepts, examples, and key points from your notes
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="h-[60vh] pr-4">
+            <div className="prose dark:prose-invert max-w-none">
+              <div className="whitespace-pre-wrap">{summary}</div>
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

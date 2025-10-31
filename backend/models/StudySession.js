@@ -51,12 +51,27 @@ const studySessionSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  // This field will be used for TTL index to auto-delete after session ends
+  expireAt: {
+    type: Date,
+    required: true,
+  },
 });
 
 // Update the updatedAt field before saving
 studySessionSchema.pre("save", function (next) {
   this.updatedAt = Date.now();
+
+  // Set expireAt to endTime if not already set
+  if (!this.expireAt && this.endTime) {
+    this.expireAt = this.endTime;
+  }
+
   next();
 });
+
+// TTL index to automatically delete sessions after they end
+// Documents will be deleted shortly after the expireAt time
+studySessionSchema.index({ expireAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model("StudySession", studySessionSchema);

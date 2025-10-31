@@ -7,6 +7,7 @@ const {
   deleteSession,
   joinSession,
   leaveSession,
+  completeSession,
 } = require("../controllers/sessionsController");
 const auth = require("../middleware/auth");
 
@@ -22,5 +23,6 @@ router
 
 router.post("/:id/join", auth, joinSession);
 router.post("/:id/leave", auth, leaveSession);
+router.post("/:id/complete", auth, completeSession);
 
 module.exports = router;

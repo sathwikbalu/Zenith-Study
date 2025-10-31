@@ -43,8 +43,8 @@ export const useWebRTC = (
 ) => {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [peers, setPeers] = useState<Map<string, Peer>>(new Map());
-  const [audioEnabled, setAudioEnabled] = useState(true); // Default to enabled
-  const [videoEnabled, setVideoEnabled] = useState(true); // Default to enabled
+  const [audioEnabled, setAudioEnabled] = useState(isTutor); // Only tutors have audio by default
+  const [videoEnabled, setVideoEnabled] = useState(isTutor); // Only tutors have video by default
   const localStreamRef = useRef<MediaStream | null>(null);
   const peersRef = useRef<Map<string, Peer>>(new Map());
 
@@ -57,30 +57,33 @@ export const useWebRTC = (
 
     const initMedia = async () => {
       try {
-        // Request both audio and video for all users, enabled by default
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            frameRate: { ideal: 30 },
-          },
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-        });
+        // Only tutors need media access
+        if (isTutor) {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              frameRate: { ideal: 30 },
+            },
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          });
 
-        // Enable tracks by default
-        stream.getAudioTracks().forEach((track) => (track.enabled = true));
-        stream.getVideoTracks().forEach((track) => (track.enabled = true));
+          stream.getAudioTracks().forEach((track) => (track.enabled = true));
+          stream.getVideoTracks().forEach((track) => (track.enabled = true));
 
-        setLocalStream(stream);
-        localStreamRef.current = stream;
+          setLocalStream(stream);
+          localStreamRef.current = stream;
+        }
 
         socket.emit("join-session", { sessionId, userId, userName, isTutor });
       } catch (error) {
         console.error("Error accessing media devices:", error);
+        // Still join the session even if media fails
+        socket.emit("join-session", { sessionId, userId, userName, isTutor });
       }
     };
 
@@ -92,13 +95,16 @@ export const useWebRTC = (
         participants.map((p) => p.userName)
       );
       participants.forEach((participant) => {
-        createPeerConnection(
-          participant.socketId,
-          participant.userId,
-          participant.userName,
-          true,
-          participant.isTutor
-        );
+        // Students only connect to tutors, tutors connect to everyone
+        if (isTutor || participant.isTutor) {
+          createPeerConnection(
+            participant.socketId,
+            participant.userId,
+            participant.userName,
+            true,
+            participant.isTutor
+          );
+        }
       });
     });
 
@@ -112,13 +118,16 @@ export const useWebRTC = (
       }) => {
         console.log(`User joined: ${newUserName} (${socketId})`);
         if (socketId !== socket.id) {
-          createPeerConnection(
-            socketId,
-            newUserId,
-            newUserName,
-            false,
-            newUserIsTutor
-          );
+          // Students only connect to tutors, tutors connect to everyone
+          if (isTutor || newUserIsTutor) {
+            createPeerConnection(
+              socketId,
+              newUserId,
+              newUserName,
+              false,
+              newUserIsTutor
+            );
+          }
         }
       }
     );
@@ -224,7 +233,9 @@ export const useWebRTC = (
       peerIsTutor: boolean = false
     ) => {
       try {
-        console.log(`Creating peer connection for ${peerName} (${socketId}), shouldCreateOffer: ${shouldCreateOffer}`);
+        console.log(
+          `Creating peer connection for ${peerName} (${socketId}), shouldCreateOffer: ${shouldCreateOffer}`
+        );
 
         const peerConnection = new RTCPeerConnection(ICE_SERVERS);
 
@@ -242,10 +253,12 @@ export const useWebRTC = (
         peersRef.current.set(socketId, newPeer);
         setPeers(new Map(peersRef.current));
 
-        // Add local tracks to peer connection with sender optimization
-        if (localStreamRef.current) {
+        // Only tutors add their media tracks
+        if (isTutor && localStreamRef.current) {
           for (const track of localStreamRef.current.getTracks()) {
-            console.log(`Adding ${track.kind} track to peer connection for ${peerName}`);
+            console.log(
+              `Adding ${track.kind} track to peer connection for ${peerName}`
+            );
             peerConnection.addTrack(track, localStreamRef.current);
           }
         }
@@ -270,7 +283,7 @@ export const useWebRTC = (
 
             console.log(
               `✅ Updated peer ${peerName} with stream containing tracks:`,
-              remoteStream.getTracks().map(t => t.kind)
+              remoteStream.getTracks().map((t) => t.kind)
             );
           }
         };
@@ -320,7 +333,10 @@ export const useWebRTC = (
           console.log(`✉️ Sent offer to ${peerName}`);
         }
       } catch (error) {
-        console.error(`❌ Error creating peer connection for ${peerName}:`, error);
+        console.error(
+          `❌ Error creating peer connection for ${peerName}:`,
+          error
+        );
       }
     },
     [socket]

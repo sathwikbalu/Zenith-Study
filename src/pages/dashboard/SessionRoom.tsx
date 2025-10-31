@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useToast } from "@/hooks/use-toast";
 import {
   Mic,
   MicOff,
@@ -18,6 +19,8 @@ import {
   Users,
   X,
   Presentation,
+  CheckCircle,
+  Loader2,
 } from "lucide-react";
 import { CollaborativeWhiteboard } from "@/components/CollaborativeWhiteboard";
 import { LocalVideo } from "@/components/LocalVideo";
@@ -55,11 +58,13 @@ const SessionRoom = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { socket, connected } = useSocket();
+  const { toast } = useToast();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [showChat, setShowChat] = useState(true);
   const [showParticipants, setShowParticipants] = useState(false);
   const [showWhiteboard, setShowWhiteboard] = useState(false);
+  const [completing, setCompleting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const isTutor = user?.role === "tutor";
@@ -81,6 +86,37 @@ const SessionRoom = () => {
 
   useEffect(() => {
     if (!socket || !sessionId) return;
+
+    // Auto-join session when entering the room
+    const autoJoinSession = async () => {
+      try {
+        console.log(`Auto-joining session ${sessionId} for user ${user?._id}`);
+        const response = await fetch(
+          `http://localhost:5000/api/sessions/${sessionId}/join`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${user?.token}`,
+            },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log("Successfully joined session as participant", data);
+        } else if (response.status === 400) {
+          // Already joined, that's fine
+          console.log("Already a participant in this session");
+        } else {
+          console.error("Failed to join session:", await response.text());
+        }
+      } catch (error) {
+        console.error("Error auto-joining session:", error);
+      }
+    };
+
+    autoJoinSession();
 
     const fetchMessages = async () => {
       try {
@@ -183,6 +219,59 @@ const SessionRoom = () => {
     navigate("/dashboard/sessions");
   };
 
+  const completeSession = async () => {
+    if (!sessionId) return;
+
+    try {
+      setCompleting(true);
+      console.log("Completing session:", sessionId);
+
+      const response = await fetch(
+        `http://localhost:5000/api/sessions/${sessionId}/complete`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${user?.token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+      console.log("Complete session response:", data);
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.error || data.message || "Failed to complete session"
+        );
+      }
+
+      toast({
+        title: "Session Completed! 🎉",
+        description: `AI-generated notes have been added to ${data.notesCount} participants' accounts. Check your Notes section!`,
+        duration: 5000,
+      });
+
+      // Leave the session after showing success message
+      setTimeout(() => {
+        leaveSession();
+      }, 3000);
+    } catch (error) {
+      console.error("Error completing session:", error);
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to complete session. Make sure AI backend is running on port 5001.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    } finally {
+      setCompleting(false);
+    }
+  };
+
   if (!connected) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -207,27 +296,46 @@ const SessionRoom = () => {
           </div>
         ) : (
           <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-max overflow-y-auto">
-            <Card className="aspect-video bg-black relative overflow-hidden">
-              {localStream && videoEnabled ? (
-                <LocalVideo
-                  stream={localStream}
-                  videoEnabled={videoEnabled}
-                  userName={user?.name || "You"}
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-black">
-                  <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
-                    <span className="text-2xl font-bold text-primary">
-                      {user?.name?.charAt(0).toUpperCase()}
-                    </span>
+            {/* Only show local video if user is tutor */}
+            {isTutor && (
+              <Card className="aspect-video bg-black relative overflow-hidden">
+                {localStream && videoEnabled ? (
+                  <LocalVideo
+                    stream={localStream}
+                    videoEnabled={videoEnabled}
+                    userName={user?.name || "You"}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-black">
+                    <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
+                      <span className="text-2xl font-bold text-primary">
+                        {user?.name?.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
                   </div>
+                )}
+                <div className="absolute bottom-2 left-2 bg-black/50 px-2 py-1 rounded text-white text-sm">
+                  You (Tutor) {!videoEnabled && "(video off)"}
                 </div>
-              )}
-              <div className="absolute bottom-2 left-2 bg-black/50 px-2 py-1 rounded text-white text-sm">
-                You {!videoEnabled && "(video off)"}
-              </div>
-            </Card>
+              </Card>
+            )}
 
+            {/* Students see message if no tutor has joined yet */}
+            {!isTutor && peers.size === 0 && (
+              <div className="col-span-full flex items-center justify-center p-12">
+                <div className="text-center">
+                  <Users className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-xl font-semibold mb-2">
+                    Waiting for tutor...
+                  </h3>
+                  <p className="text-muted-foreground">
+                    The session will start when the tutor joins.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Show remote peers (students see tutor, tutor sees all students) */}
             {Array.from(peers.values()).map((peer) => (
               <Card
                 key={peer.socketId}
@@ -316,22 +424,28 @@ const SessionRoom = () => {
 
       <div className="border-t p-4 bg-card">
         <div className="flex items-center justify-center gap-4">
-          <Button
-            variant={audioEnabled ? "default" : "destructive"}
-            size="icon"
-            className="h-12 w-12 rounded-full"
-            onClick={toggleAudio}
-          >
-            {audioEnabled ? <Mic /> : <MicOff />}
-          </Button>
-          <Button
-            variant={videoEnabled ? "default" : "destructive"}
-            size="icon"
-            className="h-12 w-12 rounded-full"
-            onClick={toggleVideo}
-          >
-            {videoEnabled ? <Video /> : <VideoOff />}
-          </Button>
+          {/* Only tutors can control audio/video */}
+          {isTutor && (
+            <>
+              <Button
+                variant={audioEnabled ? "default" : "destructive"}
+                size="icon"
+                className="h-12 w-12 rounded-full"
+                onClick={toggleAudio}
+              >
+                {audioEnabled ? <Mic /> : <MicOff />}
+              </Button>
+              <Button
+                variant={videoEnabled ? "default" : "destructive"}
+                size="icon"
+                className="h-12 w-12 rounded-full"
+                onClick={toggleVideo}
+              >
+                {videoEnabled ? <Video /> : <VideoOff />}
+              </Button>
+            </>
+          )}
+
           <Button
             variant="destructive"
             size="icon"
@@ -350,22 +464,36 @@ const SessionRoom = () => {
               <MessageCircle />
             </Button>
           )}
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-12 w-12 rounded-full"
-            onClick={() => setShowParticipants(!showParticipants)}
-          >
-            <Users />
-          </Button>
-          <Button
-            variant={showWhiteboard ? "default" : "outline"}
-            size="icon"
-            className="h-12 w-12 rounded-full"
-            onClick={() => setShowWhiteboard(!showWhiteboard)}
-          >
-            <Presentation />
-          </Button>
+          {isTutor && (
+            <>
+              <Button
+                variant={showWhiteboard ? "default" : "outline"}
+                size="icon"
+                className="h-12 w-12 rounded-full"
+                onClick={() => setShowWhiteboard(!showWhiteboard)}
+              >
+                <Presentation />
+              </Button>
+              <Button
+                variant="default"
+                onClick={completeSession}
+                disabled={completing}
+                className="gap-2"
+              >
+                {completing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Completing...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    Complete Session
+                  </>
+                )}
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </div>

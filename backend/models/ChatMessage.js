@@ -24,6 +24,11 @@ const chatMessageSchema = new mongoose.Schema(
       default: "text",
       enum: ["text", "emoji", "system"],
     },
+    // This field will be used for TTL index to auto-delete messages
+    expireAt: {
+      type: Date,
+      required: true,
+    },
   },
   {
     timestamps: true,
@@ -32,5 +37,9 @@ const chatMessageSchema = new mongoose.Schema(
 
 // Index for efficient querying by sessionId
 chatMessageSchema.index({ sessionId: 1, createdAt: 1 });
+
+// TTL index to automatically delete messages after session ends
+// Documents will be deleted shortly after the expireAt time
+chatMessageSchema.index({ expireAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model("ChatMessage", chatMessageSchema);

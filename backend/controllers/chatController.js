@@ -1,4 +1,5 @@
 const ChatMessage = require("../models/ChatMessage");
+const StudySession = require("../models/StudySession");
 
 const getSessionMessages = async (req, res) => {
   try {
@@ -39,12 +40,19 @@ const saveMessage = async (req, res) => {
         .json({ message: "Session ID and message are required" });
     }
 
+    // Get the session to find its end time
+    const session = await StudySession.findById(sessionId);
+    if (!session) {
+      return res.status(404).json({ message: "Session not found" });
+    }
+
     const chatMessage = new ChatMessage({
       sessionId,
       userId,
       userName,
       message,
       messageType,
+      expireAt: session.endTime, // Messages expire when session ends
     });
 
     const savedMessage = await chatMessage.save();

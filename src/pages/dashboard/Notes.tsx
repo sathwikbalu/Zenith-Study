@@ -42,18 +42,33 @@ const Notes = () => {
     if (user?.role === "student") {
       addActivity();
     }
+
+    // Refetch notes when window regains focus (user comes back from session)
+    const handleFocus = () => {
+      console.log("Window focused, refetching notes...");
+      fetchNotes();
+    };
+
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []);
 
   const fetchNotes = async () => {
     try {
       setLoading(true);
+      console.log("Fetching notes from API...");
       const fetchedNotes = await notesAPI.getAll();
+      console.log("Fetched notes:", fetchedNotes);
       // Map _id to id for frontend compatibility
       const notesWithId = fetchedNotes.map((note: any) => ({
         ...note,
         id: note._id,
       }));
       setNotes(notesWithId);
+      console.log(`Total notes loaded: ${notesWithId.length}`);
     } catch (error) {
       console.error("Error fetching notes:", error);
       toast({

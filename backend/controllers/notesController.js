@@ -5,11 +5,17 @@ const Note = require("../models/Note");
 // @access  Private
 const getNotes = async (req, res) => {
   try {
+    console.log(`Fetching notes for user: ${req.user._id}`);
     const notes = await Note.find({ userId: req.user._id }).sort({
       updatedAt: -1,
     });
+    console.log(`Found ${notes.length} notes for user ${req.user._id}`);
+    if (notes.length > 0) {
+      console.log(`Latest note: ${notes[0].title}`);
+    }
     res.json(notes);
   } catch (error) {
+    console.error("Error in getNotes:", error);
     res.status(500).json({ message: error.message });
   }
 };
