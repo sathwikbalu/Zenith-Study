@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Socket } from "socket.io-client";
 
 interface Peer {
@@ -10,6 +10,7 @@ interface Peer {
   audioEnabled?: boolean;
   videoEnabled?: boolean;
   isTutor?: boolean;
+  dataChannel?: RTCDataChannel;
 }
 
 // Enhanced ICE servers configuration for better voice clarity
@@ -214,83 +215,116 @@ export const useWebRTC = (
     };
   }, [socket, sessionId, userId, userName, isTutor]);
 
-  const createPeerConnection = async (
-    socketId: string,
-    peerId: string,
-    peerName: string,
-    shouldCreateOffer: boolean,
-    peerIsTutor: boolean = false
-  ) => {
-    try {
-      const peerConnection = new RTCPeerConnection(ICE_SERVERS);
+  const createPeerConnection = useCallback(
+    async (
+      socketId: string,
+      peerId: string,
+      peerName: string,
+      shouldCreateOffer: boolean,
+      peerIsTutor: boolean = false
+    ) => {
+      try {
+        console.log(`Creating peer connection for ${peerName} (${socketId}), shouldCreateOffer: ${shouldCreateOffer}`);
 
-      // Create and store peer object first
-      const newPeer: Peer = {
-        socketId,
-        userId: peerId,
-        userName: peerName,
-        peerConnection,
-        audioEnabled: true,
-        videoEnabled: true,
-        isTutor: peerIsTutor,
-      };
+        const peerConnection = new RTCPeerConnection(ICE_SERVERS);
 
-      peersRef.current.set(socketId, newPeer);
-      setPeers(new Map(peersRef.current));
+        // Create and store peer object first
+        const newPeer: Peer = {
+          socketId,
+          userId: peerId,
+          userName: peerName,
+          peerConnection,
+          audioEnabled: true,
+          videoEnabled: true,
+          isTutor: peerIsTutor,
+        };
 
-      // Add local tracks to peer connection
-      localStreamRef.current?.getTracks().forEach((track) => {
+        peersRef.current.set(socketId, newPeer);
+        setPeers(new Map(peersRef.current));
+
+        // Add local tracks to peer connection with sender optimization
         if (localStreamRef.current) {
-          peerConnection.addTrack(track, localStreamRef.current);
-        }
-      });
-
-      // Handle incoming tracks from remote peer
-      peerConnection.ontrack = (event) => {
-        console.log(`Received track from ${peerName}:`, event.track.kind);
-        setPeers((prev) => {
-          const newPeers = new Map(prev);
-          const peer = newPeers.get(socketId);
-          if (peer) {
-            peer.stream = event.streams[0];
-            newPeers.set(socketId, peer);
+          for (const track of localStreamRef.current.getTracks()) {
+            console.log(`Adding ${track.kind} track to peer connection for ${peerName}`);
+            peerConnection.addTrack(track, localStreamRef.current);
           }
-          return newPeers;
-        });
-      };
+        }
 
-      peerConnection.onicecandidate = (event) => {
-        if (event.candidate && socket) {
-          socket.emit("webrtc-ice-candidate", {
-            candidate: event.candidate,
-            to: socketId,
+        // Handle incoming tracks from remote peer - this is critical
+        peerConnection.ontrack = (event) => {
+          console.log(
+            `📹 ontrack received from ${peerName}: ${event.track.kind}, streams: ${event.streams.length}`
+          );
+
+          if (event.streams && event.streams.length > 0) {
+            const remoteStream = event.streams[0];
+
+            // Update the peer with the stream immediately
+            peersRef.current.set(socketId, {
+              ...peersRef.current.get(socketId)!,
+              stream: remoteStream,
+            });
+
+            // Force update to trigger re-render
+            setPeers(new Map(peersRef.current));
+
+            console.log(
+              `✅ Updated peer ${peerName} with stream containing tracks:`,
+              remoteStream.getTracks().map(t => t.kind)
+            );
+          }
+        };
+
+        // Handle ICE candidates
+        peerConnection.onicecandidate = (event) => {
+          if (event.candidate && socket) {
+            console.log(`Sending ICE candidate to ${peerName}`);
+            socket.emit("webrtc-ice-candidate", {
+              candidate: event.candidate,
+              to: socketId,
+            });
+          }
+        };
+
+        // Monitor connection state
+        peerConnection.onconnectionstatechange = () => {
+          console.log(
+            `🔗 Connection state for ${peerName}: ${peerConnection.connectionState}`
+          );
+        };
+
+        peerConnection.oniceconnectionstatechange = () => {
+          console.log(
+            `❄️ ICE connection state for ${peerName}: ${peerConnection.iceConnectionState}`
+          );
+          if (peerConnection.iceConnectionState === "failed") {
+            console.error(`⚠️ ICE connection failed for ${peerName}`);
+          }
+        };
+
+        peerConnection.onsignalingstatechange = () => {
+          console.log(
+            `📡 Signaling state for ${peerName}: ${peerConnection.signalingState}`
+          );
+        };
+
+        // Create offer if this peer should initiate
+        if (shouldCreateOffer) {
+          console.log(`Creating offer for ${peerName}...`);
+          const offer = await peerConnection.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: true,
           });
+          await peerConnection.setLocalDescription(offer);
+          socket?.emit("webrtc-offer", { offer, to: socketId });
+          console.log(`✉️ Sent offer to ${peerName}`);
         }
-      };
-
-      // Handle ICE connection state changes for better debugging
-      peerConnection.oniceconnectionstatechange = () => {
-        console.log(
-          `ICE connection state for ${peerName}: ${peerConnection.iceConnectionState}`
-        );
-        if (peerConnection.iceConnectionState === "failed") {
-          console.error(`ICE connection failed for ${peerName}`);
-        }
-      };
-
-      // Create offer if this peer should initiate
-      if (shouldCreateOffer) {
-        const offer = await peerConnection.createOffer({
-          offerToReceiveAudio: true,
-          offerToReceiveVideo: true,
-        });
-        await peerConnection.setLocalDescription(offer);
-        socket?.emit("webrtc-offer", { offer, to: socketId });
+      } catch (error) {
+        console.error(`❌ Error creating peer connection for ${peerName}:`, error);
       }
-    } catch (error) {
-      console.error("Error creating peer connection:", error);
-    }
-  };
+    },
+    [socket]
+  );
 
   const toggleAudio = () => {
     if (localStreamRef.current) {
