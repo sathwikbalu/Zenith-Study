@@ -2,7 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { Canvas as FabricCanvas, FabricObject } from "fabric";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Pencil, Square, Circle, Eraser, Trash2, Download, MousePointer } from "lucide-react";
+import {
+  Pencil,
+  Square,
+  Circle,
+  Eraser,
+  Trash2,
+  Download,
+  MousePointer,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Socket } from "socket.io-client";
 
@@ -14,7 +22,11 @@ interface CollaborativeWhiteboardProps {
 
 type Tool = "select" | "draw" | "rectangle" | "circle" | "eraser";
 
-export const CollaborativeWhiteboard = ({ socket, sessionId, userId }: CollaborativeWhiteboardProps) => {
+export const CollaborativeWhiteboard = ({
+  socket,
+  sessionId,
+  userId,
+}: CollaborativeWhiteboardProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<FabricCanvas | null>(null);
   const [activeTool, setActiveTool] = useState<Tool>("draw");
@@ -39,9 +51,14 @@ export const CollaborativeWhiteboard = ({ socket, sessionId, userId }: Collabora
     // Listen for local canvas modifications
     const handleObjectAdded = (e: any) => {
       if (!socket || isDrawingRef.current) return;
-      
+
       const obj = e.target;
       if (obj) {
+        // Add a unique ID to the object for tracking
+        if (!obj.id) {
+          obj.set({ id: `${userId}-${Date.now()}-${Math.random()}` });
+        }
+
         socket.emit("whiteboard-action", {
           sessionId,
           userId,
@@ -53,23 +70,28 @@ export const CollaborativeWhiteboard = ({ socket, sessionId, userId }: Collabora
 
     const handleObjectModified = (e: any) => {
       if (!socket || isDrawingRef.current) return;
-      
+
       const obj = e.target;
-      if (obj) {
+      if (obj && obj.id) {
         socket.emit("whiteboard-action", {
           sessionId,
           userId,
           action: "modify",
-          data: { id: obj.get("id"), ...obj.toJSON() },
+          data: { id: obj.id, ...obj.toJSON() },
         });
       }
     };
 
     const handlePathCreated = (e: any) => {
       if (!socket) return;
-      
+
       const path = e.path;
       if (path) {
+        // Add a unique ID to the path for tracking
+        if (!path.id) {
+          path.set({ id: `${userId}-${Date.now()}-${Math.random()}` });
+        }
+
         socket.emit("whiteboard-action", {
           sessionId,
           userId,
@@ -89,12 +111,16 @@ export const CollaborativeWhiteboard = ({ socket, sessionId, userId }: Collabora
       canvas.off("path:created", handlePathCreated);
       canvas.dispose();
     };
-  }, [socket, sessionId, userId]);
+  }, [socket, sessionId, userId, color]);
 
   useEffect(() => {
     if (!socket || !fabricCanvasRef.current) return;
 
-    const handleWhiteboardAction = ({ userId: senderId, action, data }: any) => {
+    const handleWhiteboardAction = ({
+      userId: senderId,
+      action,
+      data,
+    }: any) => {
       if (senderId === userId || !fabricCanvasRef.current) return;
 
       const canvas = fabricCanvasRef.current;
@@ -103,14 +129,22 @@ export const CollaborativeWhiteboard = ({ socket, sessionId, userId }: Collabora
       try {
         if (action === "add" && data) {
           // Parse JSON and add object
-          FabricObject.fromObject(data).then((obj: any) => {
-            if (obj && canvas) {
-              canvas.add(obj);
-              canvas.renderAll();
-            }
-          }).catch(console.error);
-        } else if (action === "modify" && data) {
-          const obj = canvas.getObjects().find((o: any) => o.id === data.id) as any;
+          FabricObject.fromObject(data)
+            .then((obj: any) => {
+              if (obj && canvas) {
+                // Ensure the object has an ID
+                if (!obj.id && data.id) {
+                  obj.set({ id: data.id });
+                }
+                canvas.add(obj);
+                canvas.renderAll();
+              }
+            })
+            .catch(console.error);
+        } else if (action === "modify" && data && data.id) {
+          const obj = canvas
+            .getObjects()
+            .find((o: any) => o.id === data.id) as any;
           if (obj) {
             obj.set(data);
             canvas.renderAll();
@@ -129,12 +163,29 @@ export const CollaborativeWhiteboard = ({ socket, sessionId, userId }: Collabora
 
     const handleWhiteboardSync = async (canvasData: any) => {
       if (!fabricCanvasRef.current) return;
-      
+
       isDrawingRef.current = true;
       const canvas = fabricCanvasRef.current;
-      
+
       try {
-        await canvas.loadFromJSON(canvasData);
+        // Clear existing objects first
+        canvas.clear();
+        canvas.backgroundColor = "#ffffff";
+
+        // Load objects from the state
+        if (canvasData.objects && Array.isArray(canvasData.objects)) {
+          for (const objData of canvasData.objects) {
+            try {
+              const obj = await FabricObject.fromObject(objData);
+              if (obj) {
+                canvas.add(obj);
+              }
+            } catch (err) {
+              console.error("Error loading object:", err);
+            }
+          }
+        }
+
         canvas.renderAll();
       } finally {
         setTimeout(() => {
@@ -160,9 +211,10 @@ export const CollaborativeWhiteboard = ({ socket, sessionId, userId }: Collabora
     if (!canvas) return;
 
     canvas.isDrawingMode = activeTool === "draw" || activeTool === "eraser";
-    
+
     if (canvas.isDrawingMode && canvas.freeDrawingBrush) {
-      canvas.freeDrawingBrush.color = activeTool === "eraser" ? "#ffffff" : color;
+      canvas.freeDrawingBrush.color =
+        activeTool === "eraser" ? "#ffffff" : color;
       canvas.freeDrawingBrush.width = activeTool === "eraser" ? 20 : 2;
     }
 
@@ -182,6 +234,7 @@ export const CollaborativeWhiteboard = ({ socket, sessionId, userId }: Collabora
         fill: color,
         width: 100,
         height: 100,
+        id: `${userId}-${Date.now()}-${Math.random()}`, // Add unique ID
       });
       canvas.add(rect);
     } else if (tool === "circle") {
@@ -191,6 +244,7 @@ export const CollaborativeWhiteboard = ({ socket, sessionId, userId }: Collabora
         top: 100,
         fill: color,
         radius: 50,
+        id: `${userId}-${Date.now()}-${Math.random()}`, // Add unique ID
       });
       canvas.add(circle);
     }
@@ -227,7 +281,15 @@ export const CollaborativeWhiteboard = ({ socket, sessionId, userId }: Collabora
     link.click();
   };
 
-  const colors = ["#000000", "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF"];
+  const colors = [
+    "#000000",
+    "#FF0000",
+    "#00FF00",
+    "#0000FF",
+    "#FFFF00",
+    "#FF00FF",
+    "#00FFFF",
+  ];
 
   return (
     <Card className="flex flex-col h-full">
@@ -274,7 +336,7 @@ export const CollaborativeWhiteboard = ({ socket, sessionId, userId }: Collabora
             <Eraser className="w-4 h-4" />
           </Button>
         </div>
-        
+
         <div className="flex gap-2 items-center">
           <div className="flex gap-1">
             {colors.map((c) => (
@@ -290,7 +352,7 @@ export const CollaborativeWhiteboard = ({ socket, sessionId, userId }: Collabora
               />
             ))}
           </div>
-          
+
           <Button
             variant="outline"
             size="icon"
@@ -309,7 +371,7 @@ export const CollaborativeWhiteboard = ({ socket, sessionId, userId }: Collabora
           </Button>
         </div>
       </div>
-      
+
       <div className="flex-1 p-4 overflow-auto bg-muted/20">
         <div className="mx-auto max-w-fit border border-border rounded shadow-lg bg-white">
           <canvas ref={canvasRef} />

@@ -42,8 +42,8 @@ export const useWebRTC = (
 ) => {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [peers, setPeers] = useState<Map<string, Peer>>(new Map());
-  const [audioEnabled, setAudioEnabled] = useState(false); // Default to false for both tutors and students
-  const [videoEnabled, setVideoEnabled] = useState(false); // Default to false for both tutors and students
+  const [audioEnabled, setAudioEnabled] = useState(true); // Default to enabled
+  const [videoEnabled, setVideoEnabled] = useState(true); // Default to enabled
   const localStreamRef = useRef<MediaStream | null>(null);
   const peersRef = useRef<Map<string, Peer>>(new Map());
 
@@ -56,23 +56,23 @@ export const useWebRTC = (
 
     const initMedia = async () => {
       try {
-        // Request both audio and video for all users, but keep them disabled initially
+        // Request both audio and video for all users, enabled by default
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             width: { ideal: 1280 },
             height: { ideal: 720 },
             frameRate: { ideal: 30 },
-          }, // Both tutors and students can have video
+          },
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
             autoGainControl: true,
-          }, // Both tutors and students can have audio with better quality
+          },
         });
 
-        // Initially disable tracks
-        stream.getAudioTracks().forEach((track) => (track.enabled = false));
-        stream.getVideoTracks().forEach((track) => (track.enabled = false));
+        // Enable tracks by default
+        stream.getAudioTracks().forEach((track) => (track.enabled = true));
+        stream.getVideoTracks().forEach((track) => (track.enabled = true));
 
         setLocalStream(stream);
         localStreamRef.current = stream;
@@ -86,6 +86,10 @@ export const useWebRTC = (
     initMedia();
 
     socket.on("existing-participants", (participants: Peer[]) => {
+      console.log(
+        "Received existing participants:",
+        participants.map((p) => p.userName)
+      );
       participants.forEach((participant) => {
         createPeerConnection(
           participant.socketId,
@@ -105,6 +109,7 @@ export const useWebRTC = (
         userName: newUserName,
         isTutor: newUserIsTutor,
       }) => {
+        console.log(`User joined: ${newUserName} (${socketId})`);
         if (socketId !== socket.id) {
           createPeerConnection(
             socketId,
@@ -219,27 +224,30 @@ export const useWebRTC = (
     try {
       const peerConnection = new RTCPeerConnection(ICE_SERVERS);
 
-      // Add better configuration for voice clarity
-      peerConnection.onnegotiationneeded = async () => {
-        try {
-          const offer = await peerConnection.createOffer({
-            offerToReceiveAudio: true,
-            offerToReceiveVideo: true,
-          });
-          await peerConnection.setLocalDescription(offer);
-          socket?.emit("webrtc-offer", { offer, to: socketId });
-        } catch (error) {
-          console.error("Error creating offer:", error);
-        }
+      // Create and store peer object first
+      const newPeer: Peer = {
+        socketId,
+        userId: peerId,
+        userName: peerName,
+        peerConnection,
+        audioEnabled: true,
+        videoEnabled: true,
+        isTutor: peerIsTutor,
       };
 
+      peersRef.current.set(socketId, newPeer);
+      setPeers(new Map(peersRef.current));
+
+      // Add local tracks to peer connection
       localStreamRef.current?.getTracks().forEach((track) => {
         if (localStreamRef.current) {
           peerConnection.addTrack(track, localStreamRef.current);
         }
       });
 
+      // Handle incoming tracks from remote peer
       peerConnection.ontrack = (event) => {
+        console.log(`Received track from ${peerName}:`, event.track.kind);
         setPeers((prev) => {
           const newPeers = new Map(prev);
           const peer = newPeers.get(socketId);
@@ -265,21 +273,12 @@ export const useWebRTC = (
         console.log(
           `ICE connection state for ${peerName}: ${peerConnection.iceConnectionState}`
         );
+        if (peerConnection.iceConnectionState === "failed") {
+          console.error(`ICE connection failed for ${peerName}`);
+        }
       };
 
-      const newPeer: Peer = {
-        socketId,
-        userId: peerId,
-        userName: peerName,
-        peerConnection,
-        audioEnabled: false, // Start with audio disabled
-        videoEnabled: false, // Start with video disabled
-        isTutor: peerIsTutor,
-      };
-
-      peersRef.current.set(socketId, newPeer);
-      setPeers(new Map(peersRef.current));
-
+      // Create offer if this peer should initiate
       if (shouldCreateOffer) {
         const offer = await peerConnection.createOffer({
           offerToReceiveAudio: true,

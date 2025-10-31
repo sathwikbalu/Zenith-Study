@@ -61,6 +61,7 @@ io.on("connection", (socket) => {
   socket.on(
     "join-session",
     ({ sessionId, userId, userName, isTutor = false }) => {
+      console.log(`User ${userName} (${userId}) joining session ${sessionId}`);
       socket.join(sessionId);
 
       if (!sessionRooms.has(sessionId)) {
@@ -79,14 +80,20 @@ io.on("connection", (socket) => {
         };
       });
 
-      io.to(sessionId).emit("user-joined", {
+      console.log(
+        `Session ${sessionId} participants:`,
+        participants.map((p) => p.userName)
+      );
+
+      // Send to existing participants (excluding the one who just joined)
+      socket.to(sessionId).emit("user-joined", {
         socketId: socket.id,
         userId,
         userName,
         isTutor,
-        participants,
       });
 
+      // Send existing participants to the newly joined user
       socket.emit(
         "existing-participants",
         participants.filter((p) => p.socketId !== socket.id)
@@ -95,10 +102,12 @@ io.on("connection", (socket) => {
   );
 
   socket.on("webrtc-offer", ({ offer, to }) => {
+    console.log(`Forwarding WebRTC offer from ${socket.id} to ${to}`);
     socket.to(to).emit("webrtc-offer", { offer, from: socket.id });
   });
 
   socket.on("webrtc-answer", ({ answer, to }) => {
+    console.log(`Forwarding WebRTC answer from ${socket.id} to ${to}`);
     socket.to(to).emit("webrtc-answer", { answer, from: socket.id });
   });
 
@@ -150,6 +159,9 @@ io.on("connection", (socket) => {
       const state = whiteboardStates.get(sessionId) || { objects: [] };
       state.objects.push(data);
       whiteboardStates.set(sessionId, state);
+    } else if (action === "modify" && data && data.id) {
+      // For modify actions, we don't store the full state, just broadcast
+      // The frontend handles the modification locally
     }
 
     // Broadcast to other participants
@@ -181,6 +193,8 @@ io.on("connection", (socket) => {
       sessionRooms.get(sessionId).delete(socket.id);
       if (sessionRooms.get(sessionId).size === 0) {
         sessionRooms.delete(sessionId);
+        // Clean up whiteboard state when session is empty
+        whiteboardStates.delete(sessionId);
       }
     }
     userSocketMap.delete(socket.id);

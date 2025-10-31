@@ -197,65 +197,25 @@ const SessionRoom = () => {
       <div className="flex-1 flex overflow-hidden">
         {showWhiteboard ? (
           <div className="flex-1 p-4">
-            <CollaborativeWhiteboard 
-              socket={socket} 
-              sessionId={sessionId || ""} 
-              userId={user?._id || ""} 
+            <CollaborativeWhiteboard
+              socket={socket}
+              sessionId={sessionId || ""}
+              userId={user?._id || ""}
             />
           </div>
         ) : (
           <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-max overflow-y-auto">
-          <Card className="aspect-video bg-black relative overflow-hidden">
-            {localStream ? (
-              <video
-                ref={(video) => {
-                  if (video && localStream) {
-                    video.srcObject = localStream;
-                    video.play().catch(console.error);
-                  }
-                }}
-                autoPlay
-                muted
-                playsInline
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-black">
-                <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
-                  <span className="text-2xl font-bold text-primary">
-                    {user?.name?.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-              </div>
-            )}
-            <div className="absolute bottom-2 left-2 bg-black/50 px-2 py-1 rounded text-white text-sm">
-              You {!videoEnabled && "(video off)"}
-            </div>
-            {(!videoEnabled || !localStream) && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black">
-                <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
-                  <span className="text-2xl font-bold text-primary">
-                    {user?.name?.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-              </div>
-            )}
-          </Card>
-
-          {Array.from(peers.values()).map((peer) => (
-            <Card
-              key={peer.socketId}
-              className="aspect-video bg-black relative overflow-hidden"
-            >
-              {peer.stream && peer.videoEnabled !== false ? (
+            <Card className="aspect-video bg-black relative overflow-hidden">
+              {localStream ? (
                 <video
                   ref={(video) => {
-                    if (video && peer.stream) {
-                      video.srcObject = peer.stream;
+                    if (video && localStream) {
+                      video.srcObject = localStream;
                       video.play().catch(console.error);
                     }
                   }}
                   autoPlay
+                  muted
                   playsInline
                   className="w-full h-full object-cover"
                 />
@@ -263,17 +223,60 @@ const SessionRoom = () => {
                 <div className="w-full h-full flex items-center justify-center bg-black">
                   <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
                     <span className="text-2xl font-bold text-primary">
-                      {peer.userName?.charAt(0).toUpperCase()}
+                      {user?.name?.charAt(0).toUpperCase()}
                     </span>
                   </div>
                 </div>
               )}
-              <div className="absolute bottom-2 left-2 bg-black/50 px-2 py-1 rounded text-white text-sm flex items-center gap-2">
-                {peer.userName} {peer.isTutor ? "(Tutor)" : ""}
-                {peer.audioEnabled === false && <MicOff className="w-3 h-3" />}
+              <div className="absolute bottom-2 left-2 bg-black/50 px-2 py-1 rounded text-white text-sm">
+                You {!videoEnabled && "(video off)"}
               </div>
+              {(!videoEnabled || !localStream) && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black">
+                  <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
+                    <span className="text-2xl font-bold text-primary">
+                      {user?.name?.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+              )}
             </Card>
-          ))}
+
+            {Array.from(peers.values()).map((peer) => (
+              <Card
+                key={peer.socketId}
+                className="aspect-video bg-black relative overflow-hidden"
+              >
+                {peer.stream && peer.videoEnabled !== false ? (
+                  <video
+                    ref={(video) => {
+                      if (video && peer.stream) {
+                        video.srcObject = peer.stream;
+                        video.volume = 1.0;
+                        video.play().catch(console.error);
+                      }
+                    }}
+                    autoPlay
+                    playsInline
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-black">
+                    <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
+                      <span className="text-2xl font-bold text-primary">
+                        {peer.userName?.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                <div className="absolute bottom-2 left-2 bg-black/50 px-2 py-1 rounded text-white text-sm flex items-center gap-2">
+                  {peer.userName} {peer.isTutor ? "(Tutor)" : ""}
+                  {peer.audioEnabled === false && (
+                    <MicOff className="w-3 h-3" />
+                  )}
+                </div>
+              </Card>
+            ))}
           </div>
         )}
 
