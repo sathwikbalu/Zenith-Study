@@ -42,10 +42,13 @@ export const useWebRTC = (
   isTutor: boolean = false
 ) => {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [peers, setPeers] = useState<Map<string, Peer>>(new Map());
   const [audioEnabled, setAudioEnabled] = useState(isTutor); // Only tutors have audio by default
   const [videoEnabled, setVideoEnabled] = useState(isTutor); // Only tutors have video by default
+  const [screenSharingEnabled, setScreenSharingEnabled] = useState(false);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
   const peersRef = useRef<Map<string, Peer>>(new Map());
 
   useEffect(() => {
@@ -209,6 +212,7 @@ export const useWebRTC = (
 
     return () => {
       localStreamRef.current?.getTracks().forEach((track) => track.stop());
+      screenStreamRef.current?.getTracks().forEach((track) => track.stop());
       peersRef.current.forEach((peer) => {
         peer.peerConnection?.close();
       });
@@ -373,12 +377,80 @@ export const useWebRTC = (
     }
   };
 
+  const toggleScreenShare = async () => {
+    if (!isTutor) {
+      console.log("Only tutors can share screen");
+      return;
+    }
+
+    try {
+      if (screenSharingEnabled) {
+        // Stop screen sharing
+        if (screenStreamRef.current) {
+          screenStreamRef.current.getTracks().forEach((track) => track.stop());
+          
+          // Replace screen tracks with camera tracks in all peer connections
+          peersRef.current.forEach((peer) => {
+            if (peer.peerConnection && localStreamRef.current) {
+              const videoTrack = localStreamRef.current.getVideoTracks()[0];
+              const sender = peer.peerConnection
+                .getSenders()
+                .find((s) => s.track?.kind === "video");
+              
+              if (sender && videoTrack) {
+                sender.replaceTrack(videoTrack);
+              }
+            }
+          });
+
+          screenStreamRef.current = null;
+          setScreenStream(null);
+          setScreenSharingEnabled(false);
+        }
+      } else {
+        // Start screen sharing
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: false,
+        });
+
+        screenStreamRef.current = stream;
+        setScreenStream(stream);
+        setScreenSharingEnabled(true);
+
+        // Replace camera tracks with screen tracks in all peer connections
+        const videoTrack = stream.getVideoTracks()[0];
+        peersRef.current.forEach((peer) => {
+          if (peer.peerConnection) {
+            const sender = peer.peerConnection
+              .getSenders()
+              .find((s) => s.track?.kind === "video");
+            
+            if (sender) {
+              sender.replaceTrack(videoTrack);
+            }
+          }
+        });
+
+        // Handle when user stops sharing via browser UI
+        videoTrack.onended = () => {
+          toggleScreenShare();
+        };
+      }
+    } catch (error) {
+      console.error("Error toggling screen share:", error);
+    }
+  };
+
   return {
     localStream,
+    screenStream,
     peers,
     audioEnabled,
     videoEnabled,
+    screenSharingEnabled,
     toggleAudio,
     toggleVideo,
+    toggleScreenShare,
   };
 };

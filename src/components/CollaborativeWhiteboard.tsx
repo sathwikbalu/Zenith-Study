@@ -177,8 +177,8 @@ export const CollaborativeWhiteboard = ({
           for (const objData of canvasData.objects) {
             try {
               const obj = await FabricObject.fromObject(objData);
-              if (obj) {
-                canvas.add(obj);
+              if (obj && canvas) {
+                canvas.add(obj as any);
               }
             } catch (err) {
               console.error("Error loading object:", err);

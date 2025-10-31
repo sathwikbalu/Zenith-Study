@@ -9,16 +9,19 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Mic,
-  MicOff,
   Video,
   VideoOff,
+  Mic,
+  MicOff,
   PhoneOff,
+  MessageSquare,
+  Users,
+  Presentation,
+  Monitor,
+  MonitorOff,
   Send,
   MessageCircle,
-  Users,
   X,
-  Presentation,
   CheckCircle,
   Loader2,
 } from "lucide-react";
@@ -71,11 +74,14 @@ const SessionRoom = () => {
 
   const {
     localStream,
+    screenStream,
     peers,
     audioEnabled,
     videoEnabled,
+    screenSharingEnabled,
     toggleAudio,
     toggleVideo,
+    toggleScreenShare,
   } = useWebRTC(
     socket,
     sessionId || "",
@@ -299,11 +305,11 @@ const SessionRoom = () => {
             {/* Only show local video if user is tutor */}
             {isTutor && (
               <Card className="aspect-video bg-black relative overflow-hidden">
-                {localStream && videoEnabled ? (
+                {(screenSharingEnabled ? screenStream : localStream) && (screenSharingEnabled || videoEnabled) ? (
                   <LocalVideo
-                    stream={localStream}
-                    videoEnabled={videoEnabled}
-                    userName={user?.name || "You"}
+                    stream={screenSharingEnabled ? screenStream! : localStream!}
+                    videoEnabled={screenSharingEnabled || videoEnabled}
+                    userName={screenSharingEnabled ? `${user?.name || "You"} (Screen)` : user?.name || "You"}
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-black">
@@ -315,7 +321,7 @@ const SessionRoom = () => {
                   </div>
                 )}
                 <div className="absolute bottom-2 left-2 bg-black/50 px-2 py-1 rounded text-white text-sm">
-                  You (Tutor) {!videoEnabled && "(video off)"}
+                  You (Tutor) {screenSharingEnabled ? "(sharing screen)" : !videoEnabled && "(video off)"}
                 </div>
               </Card>
             )}
@@ -442,6 +448,15 @@ const SessionRoom = () => {
                 onClick={toggleVideo}
               >
                 {videoEnabled ? <Video /> : <VideoOff />}
+              </Button>
+              <Button
+                variant={screenSharingEnabled ? "default" : "outline"}
+                size="icon"
+                className="h-12 w-12 rounded-full"
+                onClick={toggleScreenShare}
+                title="Share Screen"
+              >
+                {screenSharingEnabled ? <Monitor /> : <MonitorOff />}
               </Button>
             </>
           )}
