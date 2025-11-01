@@ -1,4 +1,4 @@
-git pullconst Note = require("../models/Note");
+const Note = require("../models/Note");
 
 // @desc    Get all notes for a user
 // @route   GET /api/notes
