@@ -27,6 +27,9 @@ import Assessment from "./pages/dashboard/Assessment";
 import Submissions from "./pages/dashboard/Submissions";
 import LearningPaths from "./pages/dashboard/LearningPaths";
 import LearningPathDetails from "./pages/dashboard/LearningPathDetails";
+import ForumList from "./pages/dashboard/ForumList";
+import CreateForum from "./pages/dashboard/CreateForum";
+import ForumChat from "./pages/dashboard/ForumChat";
 import NotFound from "./pages/NotFound";
 // import BackendTest from "./components/BackendTest";
 
@@ -122,6 +125,9 @@ const App = () => (
                     path="learning-paths/:id"
                     element={<LearningPathDetails />}
                   />
+                  <Route path="forums" element={<ForumList />} />
+                  <Route path="forums/create" element={<CreateForum />} />
+                  <Route path="forums/:id" element={<ForumChat />} />
                   <Route
                     path="smart-interviews"
                     element={<SmartInterviews />}

@@ -256,3 +256,47 @@ export const learningPathsAPI = {
       method: "DELETE",
     }),
 };
+
+// Forums API
+export const forumsAPI = {
+  create: (forumData: { topic: string; description: string }) =>
+    apiRequest("/forums", {
+      method: "POST",
+      body: JSON.stringify(forumData),
+    }),
+
+  getAll: () => apiRequest("/forums"),
+
+  join: (forumId: string) =>
+    apiRequest(`/forums/${forumId}/join`, {
+      method: "POST",
+    }),
+
+  getMessages: (forumId: string) => apiRequest(`/forums/${forumId}/messages`),
+
+  sendMessage: (forumId: string, messageData: { text: string }) =>
+    apiRequest(`/forums/${forumId}/messages`, {
+      method: "POST",
+      body: JSON.stringify(messageData),
+    }),
+
+  getUnreadCount: (forumId: string, userId: string) =>
+    apiRequest(`/forums/${forumId}/unread/${userId}`),
+};
+
+// Notifications API
+export const notificationsAPI = {
+  getUnreadCount: () => apiRequest("/notifications/unread-count"),
+  
+  getAll: () => apiRequest("/notifications"),
+  
+  markAsRead: (id: string) =>
+    apiRequest(`/notifications/${id}/read`, {
+      method: "PUT",
+    }),
+  
+  markAllAsRead: () =>
+    apiRequest("/notifications/read-all", {
+      method: "PUT",
+    }),
+};

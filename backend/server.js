@@ -36,8 +36,13 @@ const notesRoutes = require("./routes/notesRoutes");
 const sessionsRoutes = require("./routes/sessionsRoutes");
 const activityRoutes = require("./routes/activityRoutes");
 const chatRoutes = require("./routes/chatRoutes");
-const assessmentRoutes = require("./routes/assessmentRoutes");
 const learningPathRoutes = require("./routes/learningPathRoutes");
+const forumRoutes = require("./routes/forumRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
+
+// Import notification controller
+const { createNotification } = require("./controllers/notificationController");
+const User = require("./models/User");
 
 // Routes
 app.get("/", (req, res) => {
@@ -51,11 +56,13 @@ app.use("/api/notes", notesRoutes);
 app.use("/api/sessions", sessionsRoutes);
 app.use("/api/activities", activityRoutes);
 app.use("/api/chat", chatRoutes);
-app.use("/api/assessments", assessmentRoutes);
 app.use("/api/learning-paths", learningPathRoutes);
+app.use("/api/forums", forumRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // Socket.IO connection handling
 const sessionRooms = new Map();
+const forumRooms = new Map(); // Track forum rooms
 const userSocketMap = new Map();
 const whiteboardStates = new Map(); // Store whiteboard state per session
 
@@ -104,6 +111,61 @@ io.on("connection", (socket) => {
       );
     }
   );
+
+  // Forum chat events
+  socket.on("join-forum", ({ forumId, userId, userName }) => {
+    console.log(`User ${userName} (${userId}) joining forum ${forumId}`);
+    socket.join(forumId);
+
+    if (!forumRooms.has(forumId)) {
+      forumRooms.set(forumId, new Set());
+    }
+    forumRooms.get(forumId).add(socket.id);
+    userSocketMap.set(socket.id, { userId, userName, forumId });
+
+    // Notify other users in the forum that someone joined
+    socket.to(forumId).emit("user-joined-forum", {
+      userId,
+      userName,
+      forumId,
+    });
+
+    // Send current online users in the forum
+    const onlineUsers = Array.from(forumRooms.get(forumId)).map((id) => {
+      const user = userSocketMap.get(id);
+      return {
+        socketId: id,
+        userId: user?.userId,
+        userName: user?.userName,
+      };
+    });
+
+    socket.emit("forum-users", onlineUsers);
+  });
+
+  socket.on("leave-forum", ({ forumId }) => {
+    socket.leave(forumId);
+    if (forumRooms.has(forumId)) {
+      forumRooms.get(forumId).delete(socket.id);
+    }
+  });
+
+  socket.on("forum-message", ({ forumId, message, userId, userName }) => {
+    const messageData = {
+      id: Date.now().toString(),
+      forumId,
+      userId,
+      userName,
+      text: message,
+      timestamp: new Date().toISOString(),
+    };
+
+    // Broadcast message to all participants in the forum
+    io.to(forumId).emit("forum-message", messageData);
+
+    // Also log the message to console for debugging
+    console.log(`Forum message in ${forumId}: ${userName}: ${message}`);
+  });
 
   socket.on("webrtc-offer", ({ offer, to }) => {
     console.log(`Forwarding WebRTC offer from ${socket.id} to ${to}`);
@@ -189,6 +251,19 @@ io.on("connection", (socket) => {
     if (userData?.sessionId) {
       handleUserLeave(socket, userData.sessionId);
     }
+    // Handle forum disconnection
+    for (const [forumId, sockets] of forumRooms.entries()) {
+      if (sockets.has(socket.id)) {
+        sockets.delete(socket.id);
+        if (userData) {
+          socket.to(forumId).emit("user-left-forum", {
+            userId: userData.userId,
+            userName: userData.userName,
+          });
+        }
+      }
+    }
+    userSocketMap.delete(socket.id);
   });
 
   function handleUserLeave(socket, sessionId) {

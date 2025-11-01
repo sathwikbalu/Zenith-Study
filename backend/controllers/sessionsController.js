@@ -4,6 +4,9 @@ const Assessment = require("../models/Assessment");
 const fetch = (...args) =>
   import("node-fetch").then(({ default: fetch }) => fetch(...args));
 
+const { createNotification } = require("./notificationController");
+const User = require("../models/User");
+
 // @desc    Get all study sessions
 // @route   GET /api/sessions
 // @access  Private
@@ -43,36 +46,61 @@ const getSessionById = async (req, res) => {
 // @access  Private (Tutors only)
 const createSession = async (req, res) => {
   try {
-    // Only tutors can create sessions
+    // Verify user is a tutor
     if (req.user.role !== "tutor") {
-      return res
-        .status(403)
-        .json({ message: "Only tutors can create sessions" });
+      return res.status(403).json({ message: "Access denied. Tutors only." });
     }
 
-    const { title, subject, description, startTime, endTime, maxParticipants } =
+    const { title, description, subject, startTime, endTime, maxParticipants } =
       req.body;
+
+    // Validate required fields
+    if (!title || !subject || !startTime || !endTime) {
+      return res.status(400).json({
+        message: "Title, subject, start time, and end time are required",
+      });
+    }
+
+    // Validate time
+    if (new Date(startTime) >= new Date(endTime)) {
+      return res
+        .status(400)
+        .json({ message: "End time must be after start time" });
+    }
 
     const session = new StudySession({
       title,
-      subject,
       description,
-      startTime,
-      endTime,
-      createdBy: req.user._id,
+      subject,
+      tutor: req.user._id,
+      startTime: new Date(startTime),
+      endTime: new Date(endTime),
       maxParticipants,
-      participants: [req.user._id], // Creator is automatically a participant
-      expireAt: endTime, // Auto-delete session after it ends
+      participants: [req.user._id], // Add tutor as first participant
     });
 
     const createdSession = await session.save();
+    await createdSession.populate("tutor", "name");
 
-    // Populate the references before sending response
-    const populatedSession = await StudySession.findById(createdSession._id)
-      .populate("createdBy", "name")
-      .populate("participants", "name");
+    // Send notification to all students
+    try {
+      const students = await User.find({ role: "student" });
+      const studentIds = students.map(student => student._id);
+      
+      await createNotification(studentIds, {
+        type: "session_created",
+        title: "New Study Session",
+        message: `A new session "${title}" has been created by ${req.user.name}`,
+        relatedId: createdSession._id,
+      });
+      
+      // Emit socket event to notify all connected students
+      io.emit("new-session", createdSession);
+    } catch (notificationError) {
+      console.error("Error sending notifications:", notificationError);
+    }
 
-    res.status(201).json(populatedSession);
+    res.status(201).json(createdSession);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
