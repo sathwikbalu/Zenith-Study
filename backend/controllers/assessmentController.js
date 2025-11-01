@@ -357,10 +357,36 @@ const getUserSubmission = async (req, res) => {
   }
 };
 
+// @desc    Get all submissions for a user (for progress tracking)
+// @route   GET /api/assessments/user/submissions
+// @access  Private
+const getUserSubmissions = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const submissions = await AssessmentSubmission.find({ userId })
+      .populate({
+        path: "assessmentId",
+        select: "title subject createdBy",
+        populate: {
+          path: "createdBy",
+          select: "name",
+        },
+      })
+      .sort({ submittedAt: -1 });
+
+    res.json(submissions);
+  } catch (error) {
+    console.error("Error in getUserSubmissions:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   generateAssessment,
   getAssessmentBySession,
   submitAssessment,
   getSubmissionsBySession,
   getUserSubmission,
+  getUserSubmissions,
 };

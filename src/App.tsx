@@ -27,6 +27,7 @@ import Assessment from "./pages/dashboard/Assessment";
 import Submissions from "./pages/dashboard/Submissions";
 import LearningPaths from "./pages/dashboard/LearningPaths";
 import LearningPathDetails from "./pages/dashboard/LearningPathDetails";
+import Progress from "./pages/dashboard/Progress";
 import NotFound from "./pages/NotFound";
 // import BackendTest from "./components/BackendTest";
 
@@ -128,6 +129,7 @@ const App = () => (
                   />
                   <Route path="assignments" element={<Assignments />} />
                   <Route path="analytics" element={<Analytics />} />
+                  <Route path="progress" element={<Progress />} />
                   <Route path="settings" element={<Settings />} />
                 </Route>
                 <Route

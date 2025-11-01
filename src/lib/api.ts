@@ -231,6 +231,9 @@ export const assessmentsAPI = {
 
   getUserSubmission: (assessmentId: string) =>
     apiRequest(`/assessments/submission/${assessmentId}`),
+    
+  getUserSubmissions: () =>
+    apiRequest(`/assessments/user/submissions`),
 };
 
 // Learning Paths API
