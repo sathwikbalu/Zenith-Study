@@ -235,7 +235,7 @@ def generate_session_notes():
         description = data.get('description', '')
         
         prompt = f"""
-You are an educational assistant helping students by creating comprehensive study notes.
+You are an educational assistant helping students by creating comprehensive, reference-supported study notes.
 
 Based on the following study session information, create detailed, well-structured notes that students can use for learning and revision:
 
@@ -271,12 +271,28 @@ Please generate comprehensive notes with the following structure:
 ## Practice Questions
 [Suggest 3-5 questions students should be able to answer after studying this material]
 
-## Additional Resources
-[Suggest types of resources students can explore for deeper understanding]
+## Reference Links
+List 5–8 trusted, **clickable reference links** that students can use for further learning.
+
+Each resource should be written in **Markdown link format**:
+[Resource Title](https://example.com) – with a short description (1–2 lines) explaining what the link offers.
+
+Include a mix of:
+- Official documentation or reference sites (e.g., Oracle, IEEE, W3C, etc.)
+- Educational websites (.edu, .org, or high-quality learning platforms)
+- Online tutorials or blogs
+- Recommended books (include purchase or preview links if available)
+- Coding practice or interactive learning platforms
+
+⚠️ Make sure all links:
+- Are **specific and direct** (not homepages or search result pages)
+- Open educational content relevant to the topic
+- Are **clickable** in Markdown format
 
 Make the notes clear, educational, well-organized, and suitable for student learning.
+Ensure all reference links are live and clickable.
 """
-        
+  
         response = model.generate_content(prompt)
         
         if not response or not response.text:
