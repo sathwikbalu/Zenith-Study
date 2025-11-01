@@ -23,6 +23,8 @@ import Settings from "./pages/dashboard/Settings";
 import Assignments from "./pages/dashboard/Assignments";
 import Analytics from "./pages/dashboard/Analytics";
 import SessionRoom from "./pages/dashboard/SessionRoom";
+import LearningPaths from "./pages/dashboard/LearningPaths";
+import LearningPathDetails from "./pages/dashboard/LearningPathDetails";
 import NotFound from "./pages/NotFound";
 // import BackendTest from "./components/BackendTest";
 
@@ -110,6 +112,8 @@ const App = () => (
                 <Route path="calendar" element={<CalendarView />} />
                 <Route path="groups" element={<Groups />} />
                 <Route path="course-generator" element={<CourseGenerator />} />
+                <Route path="learning-paths" element={<LearningPaths />} />
+                <Route path="learning-paths/:id" element={<LearningPathDetails />} />
                 <Route path="smart-interviews" element={<SmartInterviews />} />
                 <Route path="assignments" element={<Assignments />} />
                 <Route path="analytics" element={<Analytics />} />

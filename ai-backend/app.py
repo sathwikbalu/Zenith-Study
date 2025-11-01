@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import google.generativeai as genai
 import os
+import json
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -323,6 +324,7 @@ def generate_interview_questions():
         "jobRole": "Job role/position"
     }
     """
+    result_text = ""  # Initialize at the beginning
     try:
         data = request.get_json()
         
@@ -365,7 +367,8 @@ Types should be one of: "technical", "behavioral", or "situational"
 Return ONLY valid JSON, no additional text or markdown."""
 
         response = model.generate_content(prompt)
-        result_text = response.text.strip()
+        if response and response.text:
+            result_text = response.text.strip()
         
         # Clean the response to extract JSON
         if '```json' in result_text:
@@ -373,7 +376,6 @@ Return ONLY valid JSON, no additional text or markdown."""
         elif '```' in result_text:
             result_text = result_text.split('```')[1].split('```')[0].strip()
         
-        import json
         questions_data = json.loads(result_text)
         
         return jsonify(questions_data), 200
@@ -404,6 +406,7 @@ def evaluate_answer():
         "jobRole": "Job role"
     }
     """
+    result_text = ""  # Initialize at the beginning
     try:
         data = request.get_json()
         
@@ -442,7 +445,8 @@ Score should be 0-10 based on:
 Return ONLY valid JSON, no additional text or markdown."""
 
         response = model.generate_content(prompt)
-        result_text = response.text.strip()
+        if response and response.text:
+            result_text = response.text.strip()
         
         # Clean the response to extract JSON
         if '```json' in result_text:
@@ -450,7 +454,6 @@ Return ONLY valid JSON, no additional text or markdown."""
         elif '```' in result_text:
             result_text = result_text.split('```')[1].split('```')[0].strip()
         
-        import json
         evaluation_data = json.loads(result_text)
         
         return jsonify(evaluation_data), 200
@@ -467,6 +470,110 @@ Return ONLY valid JSON, no additional text or markdown."""
         print(f"Error in evaluate_answer: {str(e)}")
         return jsonify({
             'error': f'An error occurred: {str(e)}'
+        }), 500
+
+@app.route('/api/generate-learning-path', methods=['POST'])
+def generate_learning_path():
+    """
+    Generate a learning path based on user inputs
+    Expected request body:
+    {
+        "topic": "Learning topic",
+        "level": "Beginner/Intermediate/Advanced",
+        "duration": "Learning duration",
+        "goal": "Learning goal"
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'topic' not in data or 'level' not in data or 'duration' not in data or 'goal' not in data:
+            return jsonify({
+                'error': 'Missing required fields: topic, level, duration, and goal'
+            }), 400
+        
+        topic = data['topic']
+        level = data['level']
+        duration = data['duration']
+        goal = data['goal']
+        
+        prompt = f"""
+You are an educational expert creating a comprehensive learning path. Based on the following inputs, create a detailed, structured learning roadmap:
+
+**Topic:** {topic}
+**Skill Level:** {level}
+**Learning Duration:** {duration}
+**Goal or Outcome:** {goal}
+
+Create a learning path with the following structure:
+
+### Learning Path Requirements
+
+1. **Overview**
+   - Provide a short summary of what the learner will achieve by the end of this path.
+   - Mention prerequisites if any.
+
+2. **Week-by-Week (or Phase-based) Breakdown**
+   - Divide the path into clear weekly or phase milestones.
+   - Each phase should include:
+     - Key topics/concepts to learn
+     - Recommended activities or mini-projects
+     - Practical assignments or exercises
+     - Expected outcomes for that week
+
+3. **Learning Resources**
+   - Provide clickable Markdown links to high-quality resources for each phase:
+     - Official documentation
+     - YouTube tutorials
+     - MOOCs (Coursera, edX, Udemy)
+     - Articles or blogs (.edu, .org, or trusted .com sites)
+     - Books (if relevant)
+   - Format each as:
+     [Resource Title](https://link.com) – short description
+
+4. **Tools & Technologies**
+   - List software, libraries, or platforms the learner should install or use.
+
+5. **Project Milestones**
+   - Suggest 1–2 real-world mini projects per major phase.
+   - Describe the expected learning outcomes from each.
+
+6. **Assessment & Revision**
+   - Provide self-assessment ideas or quizzes after every phase.
+   - Add revision checkpoints.
+
+7. **Completion Outcome**
+   - Explain what the learner will be able to do at the end of the roadmap (e.g., "Build REST APIs in Java using Spring Boot" or "Deploy ML models using Python and Streamlit").
+
+Make sure the learning path is:
+- Logical and progressive (from fundamentals to mastery)
+- Action-oriented (learn by doing)
+- Realistic for the given duration
+- Clear, structured, and visually easy to follow
+
+Provide your response in Markdown format with proper headings and structure.
+"""
+        
+        response = model.generate_content(prompt)
+        
+        if not response or not response.text:
+            return jsonify({
+                'error': 'Failed to generate learning path from AI'
+            }), 500
+        
+        return jsonify({
+            'success': True,
+            'content': response.text,
+            'topic': topic,
+            'level': level,
+            'duration': duration,
+            'goal': goal
+        }), 200
+    
+    except Exception as e:
+        print(f"Error in generate_learning_path: {str(e)}")
+        return jsonify({
+            'error': f'An error occurred while generating learning path: {str(e)}'
         }), 500
 
 if __name__ == '__main__':
