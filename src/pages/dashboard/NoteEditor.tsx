@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Save, Star, Sparkles, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Star, Sparkles, Loader2, Download } from "lucide-react";
 import { notesAPI } from "@/lib/api";
 import {
   Dialog,
@@ -15,6 +15,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Note {
   _id: string;
@@ -160,6 +166,114 @@ const NoteEditor = () => {
     }
   };
 
+  // PDF generation function
+  const generatePDF = async () => {
+    try {
+      const { jsPDF } = await import("jspdf");
+      const { default: html2canvas } = await import("html2canvas");
+      
+      // Create a temporary HTML element for the note content
+      const tempElement = document.createElement('div');
+      tempElement.style.padding = '20px';
+      tempElement.style.backgroundColor = 'white';
+      tempElement.style.color = 'black';
+      tempElement.style.width = '800px';
+      tempElement.style.fontFamily = 'Arial, sans-serif';
+      
+      // Add note metadata
+      tempElement.innerHTML = `
+        <div style="margin-bottom: 20px;">
+          <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">${formData.title}</h1>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+            <span><strong>Subject:</strong> ${formData.subject}</span>
+            <span><strong>Date:</strong> ${new Date().toLocaleDateString()}</span>
+          </div>
+          <hr style="border: 1px solid #eee; margin: 10px 0;">
+        </div>
+        <div style="white-space: pre-wrap; font-size: 14px; line-height: 1.6;">${formData.content}</div>
+      `;
+      
+      document.body.appendChild(tempElement);
+      
+      // Generate canvas from the HTML element
+      const canvas = await html2canvas(tempElement, {
+        scale: 2,
+        backgroundColor: '#ffffff'
+      });
+      
+      // Convert canvas to image data
+      const imgData = canvas.toDataURL('image/png');
+      
+      // Create PDF
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'px',
+        format: [canvas.width, canvas.height]
+      });
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+      pdf.save(`${formData.title || 'note'}.pdf`);
+      
+      // Clean up
+      document.body.removeChild(tempElement);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate PDF",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // DOCX generation function
+  const generateDOCX = async () => {
+    try {
+      const docxModule = await import("docx");
+      const { saveAs } = await import("file-saver");
+      
+      // Create document
+      const doc = new docxModule.Document({
+        sections: [{
+          properties: {},
+          children: [
+            new docxModule.Paragraph({
+              text: formData.title,
+              heading: docxModule.HeadingLevel.HEADING_1,
+            }),
+            new docxModule.Paragraph({
+              text: `Subject: ${formData.subject}`,
+              spacing: { after: 200 },
+            }),
+            new docxModule.Paragraph({
+              text: `Date: ${new Date().toLocaleDateString()}`,
+              spacing: { after: 400 },
+            }),
+            new docxModule.Paragraph({
+              children: [new docxModule.TextRun({
+                text: formData.content,
+                break: 1,
+              })],
+              spacing: { after: 200 },
+            }),
+          ],
+        }],
+      });
+      
+      // Generate and download
+      docxModule.Packer.toBlob(doc).then(blob => {
+        saveAs(blob, `${formData.title || 'note'}.docx`);
+      });
+    } catch (error) {
+      console.error("Error generating DOCX:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate DOCX",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -202,6 +316,22 @@ const NoteEditor = () => {
               className={`w-5 h-5 ${starred ? "fill-accent text-accent" : ""}`}
             />
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <Download className="w-4 h-4" />
+                Download
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={generatePDF}>
+                PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={generateDOCX}>
+                DOCX
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button onClick={handleSave} className="gap-2">
             <Save className="w-4 h-4" />
             Save Note

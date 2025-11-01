@@ -232,3 +232,27 @@ export const assessmentsAPI = {
   getUserSubmission: (assessmentId: string) =>
     apiRequest(`/assessments/submission/${assessmentId}`),
 };
+
+// Learning Paths API
+export const learningPathsAPI = {
+  getAll: () => apiRequest("/learning-paths"),
+
+  getById: (id: string) => apiRequest(`/learning-paths/${id}`),
+
+  create: (pathData: {
+    topic: string;
+    skillLevel: string;
+    duration: string;
+    goal: string;
+    content: string;
+  }) =>
+    apiRequest("/learning-paths", {
+      method: "POST",
+      body: JSON.stringify(pathData),
+    }),
+
+  delete: (id: string) =>
+    apiRequest(`/learning-paths/${id}`, {
+      method: "DELETE",
+    }),
+};

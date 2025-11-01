@@ -22,6 +22,7 @@ const studentMenuItems = [
   { title: 'Calendar', url: '/dashboard/calendar', icon: Calendar },
   { title: 'Groups', url: '/dashboard/groups', icon: Users },
   { title: 'Course Generator', url: '/dashboard/course-generator', icon: GraduationCap },
+  { title: 'Learning Paths', url: '/dashboard/learning-paths', icon: GraduationCap },
   { title: 'Smart Interviews', url: '/dashboard/smart-interviews', icon: BrainCircuit },
   { title: 'Settings', url: '/dashboard/settings', icon: Settings },
 ];

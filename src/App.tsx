@@ -25,6 +25,8 @@ import Analytics from "./pages/dashboard/Analytics";
 import SessionRoom from "./pages/dashboard/SessionRoom";
 import Assessment from "./pages/dashboard/Assessment";
 import Submissions from "./pages/dashboard/Submissions";
+import LearningPaths from "./pages/dashboard/LearningPaths";
+import LearningPathDetails from "./pages/dashboard/LearningPathDetails";
 import NotFound from "./pages/NotFound";
 // import BackendTest from "./components/BackendTest";
 
@@ -114,6 +116,11 @@ const App = () => (
                   <Route
                     path="course-generator"
                     element={<CourseGenerator />}
+                  />
+                  <Route path="learning-paths" element={<LearningPaths />} />
+                  <Route
+                    path="learning-paths/:id"
+                    element={<LearningPathDetails />}
                   />
                   <Route
                     path="smart-interviews"

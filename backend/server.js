@@ -37,6 +37,7 @@ const sessionsRoutes = require("./routes/sessionsRoutes");
 const activityRoutes = require("./routes/activityRoutes");
 const chatRoutes = require("./routes/chatRoutes");
 const assessmentRoutes = require("./routes/assessmentRoutes");
+const learningPathRoutes = require("./routes/learningPathRoutes");
 
 // Routes
 app.get("/", (req, res) => {
@@ -51,6 +52,7 @@ app.use("/api/sessions", sessionsRoutes);
 app.use("/api/activities", activityRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/assessments", assessmentRoutes);
+app.use("/api/learning-paths", learningPathRoutes);
 
 // Socket.IO connection handling
 const sessionRooms = new Map();

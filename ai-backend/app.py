@@ -276,7 +276,7 @@ def generate_session_notes():
         description = data.get('description', '')
         
         prompt = f"""
-You are an educational assistant helping students by creating comprehensive study notes.
+You are an educational assistant helping students by creating comprehensive, reference-supported study notes.
 
 Based on the following study session information, create detailed, well-structured notes that students can use for learning and revision:
 
@@ -312,12 +312,28 @@ Please generate comprehensive notes with the following structure:
 ## Practice Questions
 [Suggest 3-5 questions students should be able to answer after studying this material]
 
-## Additional Resources
-[Suggest types of resources students can explore for deeper understanding]
+## Reference Links
+List 5–8 trusted, **clickable reference links** that students can use for further learning.
+
+Each resource should be written in **Markdown link format**:
+[Resource Title](https://example.com) – with a short description (1–2 lines) explaining what the link offers.
+
+Include a mix of:
+- Official documentation or reference sites (e.g., Oracle, IEEE, W3C, etc.)
+- Educational websites (.edu, .org, or high-quality learning platforms)
+- Online tutorials or blogs
+- Recommended books (include purchase or preview links if available)
+- Coding practice or interactive learning platforms
+
+⚠️ Make sure all links:
+- Are **specific and direct** (not homepages or search result pages)
+- Open educational content relevant to the topic
+- Are **clickable** in Markdown format
 
 Make the notes clear, educational, well-organized, and suitable for student learning.
+Ensure all reference links are live and clickable.
 """
-        
+  
         response = model.generate_content(prompt)
         
         if not response or not response.text:
@@ -442,6 +458,7 @@ def generate_interview_questions():
         "jobRole": "Job role/position"
     }
     """
+    result_text = ""  # Initialize at the beginning
     try:
         data = request.get_json()
         
@@ -484,7 +501,8 @@ Types should be one of: "technical", "behavioral", or "situational"
 Return ONLY valid JSON, no additional text or markdown."""
 
         response = model.generate_content(prompt)
-        result_text = response.text.strip()
+        if response and response.text:
+            result_text = response.text.strip()
         
         # Clean the response to extract JSON
         if '```json' in result_text:
@@ -522,6 +540,7 @@ def evaluate_answer():
         "jobRole": "Job role"
     }
     """
+    result_text = ""  # Initialize at the beginning
     try:
         data = request.get_json()
         
@@ -560,7 +579,8 @@ Score should be 0-10 based on:
 Return ONLY valid JSON, no additional text or markdown."""
 
         response = model.generate_content(prompt)
-        result_text = response.text.strip() if response.text else ""
+        if response and response.text:
+            result_text = response.text.strip()
         
         # Clean the response to extract JSON
         if '```json' in result_text:
@@ -586,81 +606,68 @@ Return ONLY valid JSON, no additional text or markdown."""
             'error': f'An error occurred: {str(e)}'
         }), 500
 
-@app.route('/api/evaluate-assessment', methods=['POST'])
-def evaluate_assessment():
+@app.route('/api/generate-learning-path', methods=['POST'])
+def generate_learning_path():
     """
-    Evaluate student answers to assessment questions
+    Generate a personalized learning path
     Expected request body:
     {
-        "questions": [
-            {
-                "id": 1,
-                "question": "Question text",
-                "options": ["A", "B", "C", "D"],
-                "correct_answer": "A",
-                "explanation": "Explanation"
-            }
-        ],
-        "answers": [
-            {
-                "question_id": 1,
-                "selected_option": "A"
-            }
-        ]
+        "topic": "topic to learn",
+        "skillLevel": "beginner|intermediate|advanced",
+        "duration": "duration in weeks",
+        "goal": "learning goal"
     }
     """
     try:
         data = request.get_json()
         
-        if not data or 'questions' not in data or 'answers' not in data:
+        if not data or 'topic' not in data:
             return jsonify({
-                'error': 'Missing required fields: questions and answers'
+                'error': 'Missing required field: topic'
             }), 400
         
-        questions = data['questions']
-        student_answers = data['answers']
+        topic = data['topic']
+        level = data.get('skillLevel', 'beginner')
+        duration = data.get('duration', '4 weeks')
+        goal = data.get('goal', 'Master this topic')
         
-        # Create a dictionary for quick lookup of questions by ID
-        question_map = {q['id']: q for q in questions}
+        prompt = f"""You are an educational expert helping students create effective learning paths.
+Create a detailed, structured learning path for the following:
+
+Topic: {topic}
+Skill Level: {level}
+Duration: {duration}
+Goal: {goal}
+
+Make sure the learning path is:
+- Logical and progressive (from fundamentals to mastery)
+- Action-oriented (learn by doing)
+- Realistic for the given duration
+- Clear, structured, and visually easy to follow
+
+Provide your response in Markdown format with proper headings and structure.
+"""
         
-        # Evaluate each answer
-        evaluated_answers = []
-        score = 0
+        response = model.generate_content(prompt)
         
-        for answer in student_answers:
-            question_id = answer['question_id']
-            selected_option = answer['selected_option']
-            
-            if question_id in question_map:
-                question = question_map[question_id]
-                is_correct = selected_option == question['correct_answer']
-                
-                if is_correct:
-                    score += 1
-                
-                evaluated_answers.append({
-                    'question_id': question_id,
-                    'selected_option': selected_option,
-                    'correct_answer': question['correct_answer'],
-                    'is_correct': is_correct,
-                    'explanation': question['explanation']
-                })
-        
-        total_questions = len(questions)
-        percentage = (score / total_questions) * 100 if total_questions > 0 else 0
+        if not response or not response.text:
+            return jsonify({
+                'error': 'Failed to generate learning path from AI'
+            }), 500
         
         return jsonify({
             'success': True,
-            'score': score,
-            'total_questions': total_questions,
-            'percentage': percentage,
-            'evaluated_answers': evaluated_answers
+            'content': response.text,
+            'topic': topic,
+            'level': level,
+            'duration': duration,
+            'goal': goal
         }), 200
     
     except Exception as e:
-        print(f"Error in evaluate_assessment: {str(e)}")
+        print(f"Error in generate_learning_path: {str(e)}")
         return jsonify({
-            'error': f'An error occurred: {str(e)}'
+            'error': f'An error occurred while generating learning path: {str(e)}'
         }), 500
 
 if __name__ == '__main__':
