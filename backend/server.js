@@ -39,6 +39,7 @@ const chatRoutes = require("./routes/chatRoutes");
 const learningPathRoutes = require("./routes/learningPathRoutes");
 const forumRoutes = require("./routes/forumRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const assessmentRoutes = require("./routes/assessmentRoutes");
 
 // Import notification controller
 const { createNotification } = require("./controllers/notificationController");
@@ -59,6 +60,7 @@ app.use("/api/chat", chatRoutes);
 app.use("/api/learning-paths", learningPathRoutes);
 app.use("/api/forums", forumRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/assessments", assessmentRoutes);
 
 // Socket.IO connection handling
 const sessionRooms = new Map();

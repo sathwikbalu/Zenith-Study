@@ -63,8 +63,8 @@ studySessionSchema.pre("save", function (next) {
   this.updatedAt = Date.now();
 
   // Set expireAt to endTime if not already set
-  if (!this.expireAt && this.endTime) {
-    this.expireAt = this.endTime;
+  if (!this.expireAt && this.get("endTime")) {
+    this.expireAt = this.get("endTime");
   }
 
   next();

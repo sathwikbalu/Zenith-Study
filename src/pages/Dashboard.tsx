@@ -1,7 +1,8 @@
-import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { AppSidebar } from '@/components/AppSidebar';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { Outlet } from 'react-router-dom';
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/AppSidebar";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import NotificationBell from "@/components/NotificationBell";
+import { Outlet } from "react-router-dom";
 
 const Dashboard = () => {
   return (
@@ -12,9 +13,14 @@ const Dashboard = () => {
           <header className="h-16 border-b bg-card flex items-center justify-between px-6 sticky top-0 z-10">
             <div className="flex items-center">
               <SidebarTrigger />
-              <h1 className="text-xl font-display font-semibold ml-4">Dashboard</h1>
+              <h1 className="text-xl font-display font-semibold ml-4">
+                Dashboard
+              </h1>
             </div>
-            <ThemeToggle />
+            <div className="flex items-center gap-2">
+              <NotificationBell />
+              <ThemeToggle />
+            </div>
           </header>
           <div className="flex-1 p-6">
             <Outlet />

@@ -1,5 +1,5 @@
 import {
-  Home, 
+  Home,
   BookOpen,
   Calendar,
   Users,
@@ -27,7 +27,6 @@ import {
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import NotificationBell from "./NotificationBell";
 
 const studentMenuItems = [
   { title: "Dashboard", url: "/dashboard", icon: Home },
@@ -89,7 +88,6 @@ export function AppSidebar() {
               {user?.name} • {user?.role}
             </p>
           </div>
-          <NotificationBell />
         </div>
       </SidebarHeader>
 

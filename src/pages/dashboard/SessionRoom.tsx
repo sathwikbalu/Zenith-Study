@@ -252,45 +252,12 @@ const SessionRoom = () => {
         );
       }
 
-      // Generate assessment after session completion
-      try {
-        const assessmentResponse = await fetch(
-          `http://localhost:5000/api/assessments/generate/${sessionId}`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${user?.token}`,
-            },
-          }
-        );
-
-        if (!assessmentResponse.ok) {
-          const errorData = await assessmentResponse.json();
-          console.error("Failed to generate assessment:", errorData.message);
-          // Still show success message even if assessment generation fails
-          toast({
-            title: "Session Completed! 🎉",
-            description: `AI-generated notes have been added to ${data.notesCount} participants' accounts. Check your Notes section! (Assessment generation failed: ${errorData.message})`,
-            duration: 5000,
-          });
-        } else {
-          console.log("Assessment generated successfully");
-          toast({
-            title: "Session Completed! 🎉",
-            description: `AI-generated notes and assessment have been created for all participants. Check your Notes section!`,
-            duration: 5000,
-          });
-        }
-      } catch (assessmentError) {
-        console.error("Error generating assessment:", assessmentError);
-        // Still show success message even if assessment generation fails
-        toast({
-          title: "Session Completed! 🎉",
-          description: `AI-generated notes have been added to ${data.notesCount} participants' accounts. Check your Notes section! (Assessment generation failed)`,
-          duration: 5000,
-        });
-      }
+      // Show success message
+      toast({
+        title: "Session Completed! 🎉",
+        description: `AI-generated notes and assessment have been created for all participants. Check your Notes section!`,
+        duration: 5000,
+      });
 
       // Leave the session after showing success message
       setTimeout(() => {
@@ -335,80 +302,122 @@ const SessionRoom = () => {
             />
           </div>
         ) : (
-          <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-max overflow-y-auto">
-            {/* Only show local video if user is tutor */}
-            {isTutor && (
-              <Card className="aspect-video bg-black relative overflow-hidden">
-                {(screenSharingEnabled ? screenStream : localStream) &&
-                (screenSharingEnabled || videoEnabled) ? (
-                  <LocalVideo
-                    stream={screenSharingEnabled ? screenStream! : localStream!}
-                    videoEnabled={screenSharingEnabled || videoEnabled}
-                    userName={
-                      screenSharingEnabled
-                        ? `${user?.name || "You"} (Screen)`
-                        : user?.name || "You"
-                    }
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-black">
-                    <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
-                      <span className="text-2xl font-bold text-primary">
-                        {user?.name?.charAt(0).toUpperCase()}
-                      </span>
+          <>
+            {/* For students, show tutor video in full screen when tutor is present */}
+            {!isTutor &&
+            Array.from(peers.values()).some((peer) => peer.isTutor) ? (
+              <div className="flex-1 p-4">
+                {Array.from(peers.values())
+                  .filter((peer) => peer.isTutor)
+                  .map((peer) => (
+                    <div key={peer.socketId} className="w-full h-full">
+                      <Card className="w-full h-full bg-black relative overflow-hidden">
+                        {peer.stream ? (
+                          <RemoteVideo
+                            stream={peer.stream}
+                            userName={peer.userName}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-black">
+                            <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
+                              <span className="text-2xl font-bold text-primary">
+                                {peer.userName?.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        <div className="absolute bottom-2 left-2 bg-black/50 px-2 py-1 rounded text-white text-sm flex items-center gap-2">
+                          {peer.userName} {peer.isTutor ? "(Tutor)" : ""}
+                          {peer.audioEnabled === false && (
+                            <MicOff className="w-3 h-3" />
+                          )}
+                        </div>
+                      </Card>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-max overflow-y-auto">
+                {/* Only show local video if user is tutor */}
+                {isTutor && (
+                  <Card className="aspect-video bg-black relative overflow-hidden">
+                    {(screenSharingEnabled ? screenStream : localStream) &&
+                    (screenSharingEnabled || videoEnabled) ? (
+                      <LocalVideo
+                        stream={
+                          screenSharingEnabled ? screenStream! : localStream!
+                        }
+                        videoEnabled={screenSharingEnabled || videoEnabled}
+                        userName={
+                          screenSharingEnabled
+                            ? `${user?.name || "You"} (Screen)`
+                            : user?.name || "You"
+                        }
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-black">
+                        <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
+                          <span className="text-2xl font-bold text-primary">
+                            {user?.name?.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    <div className="absolute bottom-2 left-2 bg-black/50 px-2 py-1 rounded text-white text-sm">
+                      You (Tutor){" "}
+                      {screenSharingEnabled
+                        ? "(sharing screen)"
+                        : !videoEnabled && "(video off)"}
+                    </div>
+                  </Card>
+                )}
+
+                {/* Students see message if no tutor has joined yet */}
+                {!isTutor && peers.size === 0 && (
+                  <div className="col-span-full flex items-center justify-center p-12">
+                    <div className="text-center">
+                      <Users className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                      <h3 className="text-xl font-semibold mb-2">
+                        Waiting for tutor...
+                      </h3>
+                      <p className="text-muted-foreground">
+                        The session will start when the tutor joins.
+                      </p>
                     </div>
                   </div>
                 )}
-                <div className="absolute bottom-2 left-2 bg-black/50 px-2 py-1 rounded text-white text-sm">
-                  You (Tutor){" "}
-                  {screenSharingEnabled
-                    ? "(sharing screen)"
-                    : !videoEnabled && "(video off)"}
-                </div>
-              </Card>
-            )}
 
-            {/* Students see message if no tutor has joined yet */}
-            {!isTutor && peers.size === 0 && (
-              <div className="col-span-full flex items-center justify-center p-12">
-                <div className="text-center">
-                  <Users className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-                  <h3 className="text-xl font-semibold mb-2">
-                    Waiting for tutor...
-                  </h3>
-                  <p className="text-muted-foreground">
-                    The session will start when the tutor joins.
-                  </p>
-                </div>
+                {/* Show remote peers */}
+                {Array.from(peers.values()).map((peer) => (
+                  <Card
+                    key={peer.socketId}
+                    className="aspect-video bg-black relative overflow-hidden"
+                  >
+                    {peer.stream ? (
+                      <RemoteVideo
+                        stream={peer.stream}
+                        userName={peer.userName}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-black">
+                        <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
+                          <span className="text-2xl font-bold text-primary">
+                            {peer.userName?.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    <div className="absolute bottom-2 left-2 bg-black/50 px-2 py-1 rounded text-white text-sm flex items-center gap-2">
+                      {peer.userName} {peer.isTutor ? "(Tutor)" : ""}
+                      {peer.audioEnabled === false && (
+                        <MicOff className="w-3 h-3" />
+                      )}
+                    </div>
+                  </Card>
+                ))}
               </div>
             )}
-
-            {/* Show remote peers (students see tutor, tutor sees all students) */}
-            {Array.from(peers.values()).map((peer) => (
-              <Card
-                key={peer.socketId}
-                className="aspect-video bg-black relative overflow-hidden"
-              >
-                {peer.stream ? (
-                  <RemoteVideo stream={peer.stream} userName={peer.userName} />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-black">
-                    <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
-                      <span className="text-2xl font-bold text-primary">
-                        {peer.userName?.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                <div className="absolute bottom-2 left-2 bg-black/50 px-2 py-1 rounded text-white text-sm flex items-center gap-2">
-                  {peer.userName} {peer.isTutor ? "(Tutor)" : ""}
-                  {peer.audioEnabled === false && (
-                    <MicOff className="w-3 h-3" />
-                  )}
-                </div>
-              </Card>
-            ))}
-          </div>
+          </>
         )}
 
         {showChat && !showWhiteboard && (

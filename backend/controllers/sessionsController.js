@@ -72,30 +72,34 @@ const createSession = async (req, res) => {
       title,
       description,
       subject,
-      tutor: req.user._id,
+      createdBy: req.user._id, // Set the createdBy field
       startTime: new Date(startTime),
       endTime: new Date(endTime),
+      expireAt: new Date(endTime), // Set the expireAt field
       maxParticipants,
       participants: [req.user._id], // Add tutor as first participant
     });
 
     const createdSession = await session.save();
-    await createdSession.populate("tutor", "name");
+    await createdSession.populate("createdBy", "name");
 
     // Send notification to all students
     try {
       const students = await User.find({ role: "student" });
-      const studentIds = students.map(student => student._id);
-      
+      const studentIds = students.map((student) => student._id);
+
       await createNotification(studentIds, {
         type: "session_created",
         title: "New Study Session",
         message: `A new session "${title}" has been created by ${req.user.name}`,
         relatedId: createdSession._id,
       });
-      
+
       // Emit socket event to notify all connected students
-      io.emit("new-session", createdSession);
+      const io = req.app.get("socketio");
+      if (io) {
+        io.emit("new-session", createdSession);
+      }
     } catch (notificationError) {
       console.error("Error sending notifications:", notificationError);
     }
@@ -130,7 +134,7 @@ const updateSession = async (req, res) => {
 
       // Update expireAt if endTime changes
       if (req.body.endTime) {
-        session.expireAt = req.body.endTime;
+        session.expireAt = new Date(req.body.endTime);
       }
 
       const updatedSession = await session.save();
