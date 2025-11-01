@@ -23,10 +23,15 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
     ...options,
   };
 
+  console.log(`Making API request to: ${API_BASE_URL}${endpoint}`);
+
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+
+  console.log(`API response status: ${response.status} for ${endpoint}`);
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
+    console.error(`API error for ${endpoint}:`, errorData);
     throw new Error(
       errorData.message || `HTTP error! status: ${response.status}`
     );
@@ -186,4 +191,44 @@ export const chatAPI = {
       method: "POST",
       body: JSON.stringify(messageData),
     }),
+};
+
+// Assessments API
+export const assessmentsAPI = {
+  generate: (sessionId: string) =>
+    apiRequest(`/assessments/generate/${sessionId}`, {
+      method: "POST",
+    }),
+
+  getBySession: async (sessionId: string) => {
+    try {
+      const result = await apiRequest(`/assessments/session/${sessionId}`);
+      console.log(`Assessment fetched successfully for session ${sessionId}`);
+      return result;
+    } catch (error) {
+      console.error(
+        `Error fetching assessment for session ${sessionId}:`,
+        error
+      );
+      throw error;
+    }
+  },
+
+  submit: (submissionData: {
+    assessmentId: string;
+    answers: Array<{
+      questionId: string;
+      selectedOption: string;
+    }>;
+  }) =>
+    apiRequest("/assessments/submit", {
+      method: "POST",
+      body: JSON.stringify(submissionData),
+    }),
+
+  getSubmissions: (sessionId: string) =>
+    apiRequest(`/assessments/submissions/${sessionId}`),
+
+  getUserSubmission: (assessmentId: string) =>
+    apiRequest(`/assessments/submission/${assessmentId}`),
 };

@@ -1,5 +1,6 @@
 const StudySession = require("../models/StudySession");
 const Note = require("../models/Note");
+const Assessment = require("../models/Assessment");
 const fetch = (...args) =>
   import("node-fetch").then(({ default: fetch }) => fetch(...args));
 
@@ -274,35 +275,140 @@ const completeSession = async (req, res) => {
         try {
           console.log(`Creating note for participant: ${participant._id}`);
           console.log(`Participant object:`, participant);
-          
+
           const noteData = {
             title: session.title,
             subject: session.subject,
-            content: `${session.description ? session.description + "\n\n" : ""}${generatedContent}`,
+            content: `${
+              session.description ? session.description + "\n\n" : ""
+            }${generatedContent}`,
             userId: participant._id,
             starred: false,
           };
-          
+
           console.log(`Note data to save:`, noteData);
-          
+
           const note = new Note(noteData);
           const savedNote = await note.save();
-          
+
           console.log(`Note saved with ID: ${savedNote._id}`);
           console.log(`Note userId: ${savedNote.userId}`);
-          
+
           createdNotes.push(savedNote);
-          console.log(`✅ Note created successfully for user ${participant._id}`);
+          console.log(
+            `✅ Note created successfully for user ${participant._id}`
+          );
         } catch (noteError) {
-          console.error(`❌ Error creating note for participant ${participant._id}:`, noteError);
+          console.error(
+            `❌ Error creating note for participant ${participant._id}:`,
+            noteError
+          );
           console.error(`Error details:`, noteError.message);
         }
       }
 
       console.log(`Successfully created ${createdNotes.length} notes`);
 
+      // Generate assessment after notes are created
+      try {
+        console.log("Generating assessment for session...");
+        const aiAssessmentResponse = await fetch(
+          "http://localhost:5001/api/generate-quiz",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              content: `${session.title}\n${session.subject}\n${
+                session.description || ""
+              }`,
+              num_questions: 5,
+            }),
+          }
+        );
+
+        if (aiAssessmentResponse.ok) {
+          const aiAssessmentData = await aiAssessmentResponse.json();
+
+          // Use the new structured format from the improved AI backend
+          let questions = [];
+          if (aiAssessmentData.quiz && aiAssessmentData.quiz.questions) {
+            // New format - structured JSON
+            questions = aiAssessmentData.quiz.questions.map((q) => ({
+              question: q.question,
+              options: q.options,
+              correctAnswer: q.correct_answer,
+              explanation: q.explanation,
+            }));
+          } else if (aiAssessmentData.quiz) {
+            // Old format - parse the text content
+            const quizContent = aiAssessmentData.quiz;
+            const lines = quizContent.split("\n");
+            let currentQuestion = null;
+
+            for (let i = 0; i < lines.length; i++) {
+              const line = lines[i].trim();
+
+              // Check if this line starts a new question
+              if (line.match(/^\d+\./) || line.match(/^Question/)) {
+                if (currentQuestion) {
+                  questions.push(currentQuestion);
+                }
+
+                currentQuestion = {
+                  question: line,
+                  options: [],
+                  correctAnswer: "",
+                  explanation: "",
+                };
+              } else if (
+                currentQuestion &&
+                (line.match(/^[A-D]\)/) || line.match(/^[A-D]\./))
+              ) {
+                currentQuestion.options.push(line);
+              } else if (currentQuestion && line.match(/^Correct answer:/i)) {
+                currentQuestion.correctAnswer = line.replace(
+                  /^Correct answer:\s*/i,
+                  ""
+                );
+              } else if (currentQuestion && line.match(/^Explanation:/i)) {
+                currentQuestion.explanation = line.replace(
+                  /^Explanation:\s*/i,
+                  ""
+                );
+              } else if (currentQuestion && line.startsWith("Explanation:")) {
+                currentQuestion.explanation = line.substring(12).trim();
+              }
+            }
+
+            // Add the last question
+            if (currentQuestion) {
+              questions.push(currentQuestion);
+            }
+          }
+
+          // Create assessment in database
+          const assessment = new Assessment({
+            sessionId: session._id,
+            title: session.title,
+            subject: session.subject,
+            questions: questions.slice(0, 5), // Limit to 5 questions
+            createdBy: session.createdBy,
+          });
+
+          await assessment.save();
+          console.log("Assessment generated and saved successfully");
+        } else {
+          console.error("Failed to generate assessment from AI backend");
+        }
+      } catch (assessmentError) {
+        console.error("Error generating assessment:", assessmentError);
+      }
+
       res.json({
-        message: "Session completed and notes generated for all participants",
+        message:
+          "Session completed, notes generated, and assessment created for all participants",
         session: session,
         notesCount: createdNotes.length,
         success: true,

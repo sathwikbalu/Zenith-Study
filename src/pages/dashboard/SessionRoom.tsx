@@ -252,11 +252,45 @@ const SessionRoom = () => {
         );
       }
 
-      toast({
-        title: "Session Completed! 🎉",
-        description: `AI-generated notes have been added to ${data.notesCount} participants' accounts. Check your Notes section!`,
-        duration: 5000,
-      });
+      // Generate assessment after session completion
+      try {
+        const assessmentResponse = await fetch(
+          `http://localhost:5000/api/assessments/generate/${sessionId}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${user?.token}`,
+            },
+          }
+        );
+
+        if (!assessmentResponse.ok) {
+          const errorData = await assessmentResponse.json();
+          console.error("Failed to generate assessment:", errorData.message);
+          // Still show success message even if assessment generation fails
+          toast({
+            title: "Session Completed! 🎉",
+            description: `AI-generated notes have been added to ${data.notesCount} participants' accounts. Check your Notes section! (Assessment generation failed: ${errorData.message})`,
+            duration: 5000,
+          });
+        } else {
+          console.log("Assessment generated successfully");
+          toast({
+            title: "Session Completed! 🎉",
+            description: `AI-generated notes and assessment have been created for all participants. Check your Notes section!`,
+            duration: 5000,
+          });
+        }
+      } catch (assessmentError) {
+        console.error("Error generating assessment:", assessmentError);
+        // Still show success message even if assessment generation fails
+        toast({
+          title: "Session Completed! 🎉",
+          description: `AI-generated notes have been added to ${data.notesCount} participants' accounts. Check your Notes section! (Assessment generation failed)`,
+          duration: 5000,
+        });
+      }
 
       // Leave the session after showing success message
       setTimeout(() => {
@@ -305,11 +339,16 @@ const SessionRoom = () => {
             {/* Only show local video if user is tutor */}
             {isTutor && (
               <Card className="aspect-video bg-black relative overflow-hidden">
-                {(screenSharingEnabled ? screenStream : localStream) && (screenSharingEnabled || videoEnabled) ? (
+                {(screenSharingEnabled ? screenStream : localStream) &&
+                (screenSharingEnabled || videoEnabled) ? (
                   <LocalVideo
                     stream={screenSharingEnabled ? screenStream! : localStream!}
                     videoEnabled={screenSharingEnabled || videoEnabled}
-                    userName={screenSharingEnabled ? `${user?.name || "You"} (Screen)` : user?.name || "You"}
+                    userName={
+                      screenSharingEnabled
+                        ? `${user?.name || "You"} (Screen)`
+                        : user?.name || "You"
+                    }
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-black">
@@ -321,7 +360,10 @@ const SessionRoom = () => {
                   </div>
                 )}
                 <div className="absolute bottom-2 left-2 bg-black/50 px-2 py-1 rounded text-white text-sm">
-                  You (Tutor) {screenSharingEnabled ? "(sharing screen)" : !videoEnabled && "(video off)"}
+                  You (Tutor){" "}
+                  {screenSharingEnabled
+                    ? "(sharing screen)"
+                    : !videoEnabled && "(video off)"}
                 </div>
               </Card>
             )}

@@ -1,3 +1,5 @@
+import json
+import re
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import google.generativeai as genai
@@ -14,6 +16,10 @@ CORS(app)  # Enable CORS for all routes
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY not found in environment variables")
+
+# Suppress the warnings about private imports
+import warnings
+warnings.filterwarnings("ignore", module="google.generativeai")
 
 genai.configure(api_key=GEMINI_API_KEY)
 
@@ -188,22 +194,57 @@ Based on the following notes, generate {num_questions} multiple-choice quiz ques
 
 {content}
 
-For each question, provide:
-1. The question
-2. Four answer options (A, B, C, D)
-3. The correct answer
-4. A brief explanation of why that's the correct answer
+Provide the response in EXACT JSON format with this structure:
+{{
+  "questions": [
+    {{
+      "id": 1,
+      "question": "The question text here",
+      "options": [
+        "Option A",
+        "Option B", 
+        "Option C",
+        "Option D"
+      ],
+      "correct_answer": "Option A",
+      "explanation": "Explanation of why this is correct"
+    }}
+  ]
+}}
 
-Format each question clearly and make them educational and thought-provoking.
+Requirements:
+1. Generate EXACTLY {num_questions} questions
+2. Each question MUST have exactly 4 options (A, B, C, D)
+3. The correct_answer field MUST match exactly one of the options
+4. Provide a clear explanation for each answer
+5. Return ONLY valid JSON, no markdown formatting or additional text
+6. Make questions educational and thought-provoking
 """
         
         response = model.generate_content(prompt)
+        result_text = response.text.strip() if response.text else ""
+        
+        # Clean the response to extract JSON
+        if '```json' in result_text:
+            result_text = result_text.split('```json')[1].split('```')[0].strip()
+        elif '```' in result_text:
+            result_text = result_text.split('```')[1].split('```')[0].strip()
+        
+        quiz_data = json.loads(result_text)
         
         return jsonify({
             'success': True,
-            'quiz': response.text,
+            'quiz': quiz_data,
             'num_questions': num_questions
         }), 200
+    
+    except json.JSONDecodeError as e:
+        print(f"JSON decode error: {str(e)}")
+        print(f"Response text: {result_text}")
+        return jsonify({
+            'error': 'Failed to parse AI response',
+            'details': str(e)
+        }), 500
     
     except Exception as e:
         print(f"Error in generate_quiz: {str(e)}")
@@ -297,6 +338,100 @@ Make the notes clear, educational, well-organized, and suitable for student lear
             'error': f'An error occurred while generating notes: {str(e)}'
         }), 500
 
+@app.route('/api/generate-session-assessment', methods=['POST'])
+def generate_session_assessment():
+    """
+    Generate assessment questions from study session details
+    Expected request body:
+    {
+        "title": "Session title",
+        "subject": "Subject name", 
+        "description": "Session description",
+        "num_questions": 5
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'title' not in data or 'subject' not in data:
+            return jsonify({
+                'error': 'Missing required fields: title and subject'
+            }), 400
+        
+        title = data['title']
+        subject = data['subject']
+        description = data.get('description', '')
+        num_questions = data.get('num_questions', 5)
+        
+        prompt = f"""
+You are an educational assessment expert. Based on the following study session information, create {num_questions} high-quality multiple-choice questions to evaluate student understanding.
+
+Session Title: {title}
+Subject: {subject}
+Session Description: {description}
+
+Provide the assessment in EXACT JSON format with this structure:
+{{
+  "assessment": {{
+    "title": "{title}",
+    "subject": "{subject}",
+    "questions": [
+      {{
+        "id": 1,
+        "question": "The question text here",
+        "options": [
+          "Option A",
+          "Option B", 
+          "Option C",
+          "Option D"
+        ],
+        "correct_answer": "Option A",
+        "explanation": "Explanation of why this is correct"
+      }}
+    ]
+  }}
+}}
+
+Requirements:
+1. Generate EXACTLY {num_questions} questions
+2. Each question MUST have exactly 4 options
+3. The correct_answer field MUST match exactly one of the options
+4. Provide a clear, educational explanation for each answer
+5. Return ONLY valid JSON, no markdown formatting or additional text
+6. Make questions challenging but fair, testing true understanding
+7. Cover different aspects of the topic described
+"""
+        
+        response = model.generate_content(prompt)
+        result_text = response.text.strip() if response.text else ""
+        
+        # Clean the response to extract JSON
+        if '```json' in result_text:
+            result_text = result_text.split('```json')[1].split('```')[0].strip()
+        elif '```' in result_text:
+            result_text = result_text.split('```')[1].split('```')[0].strip()
+        
+        assessment_data = json.loads(result_text)
+        
+        return jsonify({
+            'success': True,
+            'assessment': assessment_data['assessment']
+        }), 200
+    
+    except json.JSONDecodeError as e:
+        print(f"JSON decode error: {str(e)}")
+        print(f"Response text: {result_text}")
+        return jsonify({
+            'error': 'Failed to parse AI response',
+            'details': str(e)
+        }), 500
+    
+    except Exception as e:
+        print(f"Error in generate_session_assessment: {str(e)}")
+        return jsonify({
+            'error': f'An error occurred: {str(e)}'
+        }), 500
+
 @app.route('/api/generate-interview-questions', methods=['POST'])
 def generate_interview_questions():
     """
@@ -357,7 +492,6 @@ Return ONLY valid JSON, no additional text or markdown."""
         elif '```' in result_text:
             result_text = result_text.split('```')[1].split('```')[0].strip()
         
-        import json
         questions_data = json.loads(result_text)
         
         return jsonify(questions_data), 200
@@ -426,7 +560,7 @@ Score should be 0-10 based on:
 Return ONLY valid JSON, no additional text or markdown."""
 
         response = model.generate_content(prompt)
-        result_text = response.text.strip()
+        result_text = response.text.strip() if response.text else ""
         
         # Clean the response to extract JSON
         if '```json' in result_text:
@@ -434,7 +568,6 @@ Return ONLY valid JSON, no additional text or markdown."""
         elif '```' in result_text:
             result_text = result_text.split('```')[1].split('```')[0].strip()
         
-        import json
         evaluation_data = json.loads(result_text)
         
         return jsonify(evaluation_data), 200
@@ -449,6 +582,83 @@ Return ONLY valid JSON, no additional text or markdown."""
     
     except Exception as e:
         print(f"Error in evaluate_answer: {str(e)}")
+        return jsonify({
+            'error': f'An error occurred: {str(e)}'
+        }), 500
+
+@app.route('/api/evaluate-assessment', methods=['POST'])
+def evaluate_assessment():
+    """
+    Evaluate student answers to assessment questions
+    Expected request body:
+    {
+        "questions": [
+            {
+                "id": 1,
+                "question": "Question text",
+                "options": ["A", "B", "C", "D"],
+                "correct_answer": "A",
+                "explanation": "Explanation"
+            }
+        ],
+        "answers": [
+            {
+                "question_id": 1,
+                "selected_option": "A"
+            }
+        ]
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'questions' not in data or 'answers' not in data:
+            return jsonify({
+                'error': 'Missing required fields: questions and answers'
+            }), 400
+        
+        questions = data['questions']
+        student_answers = data['answers']
+        
+        # Create a dictionary for quick lookup of questions by ID
+        question_map = {q['id']: q for q in questions}
+        
+        # Evaluate each answer
+        evaluated_answers = []
+        score = 0
+        
+        for answer in student_answers:
+            question_id = answer['question_id']
+            selected_option = answer['selected_option']
+            
+            if question_id in question_map:
+                question = question_map[question_id]
+                is_correct = selected_option == question['correct_answer']
+                
+                if is_correct:
+                    score += 1
+                
+                evaluated_answers.append({
+                    'question_id': question_id,
+                    'selected_option': selected_option,
+                    'correct_answer': question['correct_answer'],
+                    'is_correct': is_correct,
+                    'explanation': question['explanation']
+                })
+        
+        total_questions = len(questions)
+        percentage = (score / total_questions) * 100 if total_questions > 0 else 0
+        
+        return jsonify({
+            'success': True,
+            'score': score,
+            'total_questions': total_questions,
+            'percentage': percentage,
+            'evaluated_answers': evaluated_answers
+        }), 200
+    
+    except Exception as e:
+        print(f"Error in evaluate_assessment: {str(e)}")
         return jsonify({
             'error': f'An error occurred: {str(e)}'
         }), 500

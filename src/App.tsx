@@ -23,6 +23,8 @@ import Settings from "./pages/dashboard/Settings";
 import Assignments from "./pages/dashboard/Assignments";
 import Analytics from "./pages/dashboard/Analytics";
 import SessionRoom from "./pages/dashboard/SessionRoom";
+import Assessment from "./pages/dashboard/Assessment";
+import Submissions from "./pages/dashboard/Submissions";
 import NotFound from "./pages/NotFound";
 // import BackendTest from "./components/BackendTest";
 
@@ -78,53 +80,75 @@ const App = () => (
           <SocketProvider>
             <ActivityProvider>
               <Routes>
-              <Route path="/" element={<Index />} />
-              <Route
-                path="/login"
-                element={
-                  <PublicRoute>
-                    <Login />
-                  </PublicRoute>
-                }
-              />
-              <Route
-                path="/signup"
-                element={
-                  <PublicRoute>
-                    <Signup />
-                  </PublicRoute>
-                }
-              />
-              <Route
-                path="/dashboard"
-                element={
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
-                }
-              >
-                <Route index element={<DashboardHome />} />
-                <Route path="sessions" element={<Sessions />} />
-                <Route path="notes" element={<Notes />} />
-                <Route path="notes/:id" element={<NoteEditor />} />
-                <Route path="calendar" element={<CalendarView />} />
-                <Route path="groups" element={<Groups />} />
-                <Route path="course-generator" element={<CourseGenerator />} />
-                <Route path="smart-interviews" element={<SmartInterviews />} />
-                <Route path="assignments" element={<Assignments />} />
-                <Route path="analytics" element={<Analytics />} />
-                <Route path="settings" element={<Settings />} />
-              </Route>
-              <Route
-                path="/session/:id"
-                element={
-                  <ProtectedRoute>
-                    <SessionRoom />
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+                <Route path="/" element={<Index />} />
+                <Route
+                  path="/login"
+                  element={
+                    <PublicRoute>
+                      <Login />
+                    </PublicRoute>
+                  }
+                />
+                <Route
+                  path="/signup"
+                  element={
+                    <PublicRoute>
+                      <Signup />
+                    </PublicRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route index element={<DashboardHome />} />
+                  <Route path="sessions" element={<Sessions />} />
+                  <Route path="notes" element={<Notes />} />
+                  <Route path="notes/:id" element={<NoteEditor />} />
+                  <Route path="calendar" element={<CalendarView />} />
+                  <Route path="groups" element={<Groups />} />
+                  <Route
+                    path="course-generator"
+                    element={<CourseGenerator />}
+                  />
+                  <Route
+                    path="smart-interviews"
+                    element={<SmartInterviews />}
+                  />
+                  <Route path="assignments" element={<Assignments />} />
+                  <Route path="analytics" element={<Analytics />} />
+                  <Route path="settings" element={<Settings />} />
+                </Route>
+                <Route
+                  path="/session/:id"
+                  element={
+                    <ProtectedRoute>
+                      <SessionRoom />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/assessment/:sessionId"
+                  element={
+                    <ProtectedRoute>
+                      <Assessment />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/submissions/:sessionId"
+                  element={
+                    <ProtectedRoute>
+                      <Submissions />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
             </ActivityProvider>
           </SocketProvider>
         </AuthProvider>

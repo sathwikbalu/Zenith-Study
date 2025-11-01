@@ -200,6 +200,24 @@ const Sessions = () => {
                     ? "Join Session"
                     : "View Details"}
                 </Button>
+                {session.status === "completed" && (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => navigate(`/assessment/${session.id}`)}
+                    >
+                      Take Assessment
+                    </Button>
+                    {user?.role === "tutor" && (
+                      <Button
+                        variant="outline"
+                        onClick={() => navigate(`/submissions/${session.id}`)}
+                      >
+                        View Submissions
+                      </Button>
+                    )}
+                  </>
+                )}
                 <Button variant="outline">Share</Button>
               </div>
             </CardContent>
