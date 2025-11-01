@@ -1,4 +1,6 @@
 const Note = require("../models/Note");
+const { createNotification } = require("./notificationController");
+const User = require("../models/User");
 
 // @desc    Get all notes for a user
 // @route   GET /api/notes
@@ -45,17 +47,43 @@ const getNoteById = async (req, res) => {
 // @access  Private
 const createNote = async (req, res) => {
   try {
-    const { title, subject, content, starred } = req.body;
+    const { title, subject, content } = req.body;
+
+    // Validate required fields
+    if (!title || !subject || !content) {
+      return res
+        .status(400)
+        .json({ message: "Title, subject, and content are required" });
+    }
 
     const note = new Note({
       title,
       subject,
       content,
-      starred,
       userId: req.user._id,
     });
 
     const createdNote = await note.save();
+    await createdNote.populate("userId", "name");
+
+    // Send notification to all users except the creator
+    try {
+      const users = await User.find({ _id: { $ne: req.user._id } });
+      const userIds = users.map(user => user._id);
+      
+      await createNotification(userIds, {
+        type: "note_uploaded",
+        title: "New Note Uploaded",
+        message: `A new note "${title}" has been uploaded by ${req.user.name}`,
+        relatedId: createdNote._id,
+      });
+      
+      // Emit socket event to notify all connected users
+      io.emit("new-note", createdNote);
+    } catch (notificationError) {
+      console.error("Error sending notifications:", notificationError);
+    }
+
     res.status(201).json(createdNote);
   } catch (error) {
     res.status(500).json({ message: error.message });

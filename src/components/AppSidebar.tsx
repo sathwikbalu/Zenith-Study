@@ -13,6 +13,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { Home, BookOpen, Calendar, Users, FolderOpen, Settings, LogOut, GraduationCap, BrainCircuit, ClipboardList, BarChart, MessageCircle } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
   Sidebar,
   SidebarContent,
@@ -24,43 +26,33 @@ import {
   SidebarMenuItem,
   SidebarHeader,
   SidebarFooter,
-} from "@/components/ui/sidebar";
-import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
+} from '@/components/ui/sidebar';
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
+import NotificationBell from './NotificationBell';
 
 const studentMenuItems = [
-  { title: "Dashboard", url: "/dashboard", icon: Home },
-  { title: "Notes", url: "/dashboard/notes", icon: FolderOpen },
-  { title: "Study Sessions", url: "/dashboard/sessions", icon: BookOpen },
-  { title: "Calendar", url: "/dashboard/calendar", icon: Calendar },
-  { title: "Groups", url: "/dashboard/groups", icon: Users },
-  { title: "Progress", url: "/dashboard/progress", icon: TrendingUp },
-  {
-    title: "Course Generator",
-    url: "/dashboard/course-generator",
-    icon: GraduationCap,
-  },
-  {
-    title: "Learning Paths",
-    url: "/dashboard/learning-paths",
-    icon: GraduationCap,
-  },
-  {
-    title: "Smart Interviews",
-    url: "/dashboard/smart-interviews",
-    icon: BrainCircuit,
-  },
-  { title: "Settings", url: "/dashboard/settings", icon: Settings },
+  { title: 'Dashboard', url: '/dashboard', icon: Home },
+  { title: 'Notes', url: '/dashboard/notes', icon: FolderOpen },
+  { title: 'Study Sessions', url: '/dashboard/sessions', icon: BookOpen },
+  { title: 'Calendar', url: '/dashboard/calendar', icon: Calendar },
+  { title: 'Groups', url: '/dashboard/groups', icon: Users },
+  { title: 'Course Generator', url: '/dashboard/course-generator', icon: GraduationCap },
+  { title: 'Learning Paths', url: '/dashboard/learning-paths', icon: GraduationCap },
+  { title: 'Discussion Forums', url: '/dashboard/forums', icon: MessageCircle },
+  { title: 'Smart Interviews', url: '/dashboard/smart-interviews', icon: BrainCircuit },
+  { title: 'Settings', url: '/dashboard/settings', icon: Settings },
 ];
 
 const tutorMenuItems = [
-  { title: "Overview", url: "/dashboard", icon: Home },
-  { title: "Study Sessions", url: "/dashboard/sessions", icon: BookOpen },
-  { title: "Groups", url: "/dashboard/groups", icon: Users },
-  { title: "Calendar", url: "/dashboard/calendar", icon: Calendar },
-  { title: "Assignments", url: "/dashboard/assignments", icon: ClipboardList },
-  { title: "Analytics", url: "/dashboard/analytics", icon: BarChart },
-  { title: "Settings", url: "/dashboard/settings", icon: Settings },
+  { title: 'Overview', url: '/dashboard', icon: Home },
+  { title: 'Study Sessions', url: '/dashboard/sessions', icon: BookOpen },
+  { title: 'Groups', url: '/dashboard/groups', icon: Users },
+  { title: 'Calendar', url: '/dashboard/calendar', icon: Calendar },
+  { title: 'Assignments', url: '/dashboard/assignments', icon: ClipboardList },
+  { title: 'Analytics', url: '/dashboard/analytics', icon: BarChart },
+  { title: 'Discussion Forums', url: '/dashboard/forums', icon: MessageCircle },
+  { title: 'Settings', url: '/dashboard/settings', icon: Settings },
 ];
 
 export function AppSidebar() {
@@ -81,12 +73,13 @@ export function AppSidebar() {
           <div className="p-2 bg-primary/10 rounded-lg">
             <BookOpen className="w-6 h-6 text-primary" />
           </div>
-          <div>
+          <div className="flex-1">
             <h2 className="text-xl font-display font-bold">Zenith Study</h2>
             <p className="text-xs text-muted-foreground capitalize">
               {user?.name} • {user?.role}
             </p>
           </div>
+          <NotificationBell />
         </div>
       </SidebarHeader>
 
